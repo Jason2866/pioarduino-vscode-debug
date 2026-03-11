@@ -18,8 +18,12 @@ The `addBreakPoint()` method now handles both single and multi-location breakpoi
 ```typescript
 // Handles both formats:
 // MI2: bkpt={number="1",...}
-// MI3+: bkpt={number="1",...} or bkpt={locations=[{number="1.1",...}]}
+// MI3 single: bkpt={number="1",...}
+// MI3 multi-location: bkpt={number="2",locations=[{number="2.1",...}]}
+//   Note: Parent bkpt object always exists with parent number
 ```
+
+The code first tries to parse the parent breakpoint number (which exists in all cases), and only falls back to reading the first location number if the parent number is invalid.
 
 ### 2. MI Async Mode
 

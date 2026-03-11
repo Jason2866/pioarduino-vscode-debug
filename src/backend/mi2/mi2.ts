@@ -373,21 +373,14 @@ export class MI2 extends EventEmitter {
                 (result) => {
                     if (result.resultRecords.resultClass === 'done') {
                         // MI3/MI4: Handle both single breakpoint and multi-location breakpoints
-                        // In MI3+, multi-location breakpoints have a 'locations' array
-                        const bkptData = result.result('bkpt');
-                        let bkptNumber: number;
+                        // In MI3+, multi-location breakpoints still have a parent bkpt object with number
+                        let bkptNumber = parseInt(result.result('bkpt.number'));
                         
-                        if (bkptData) {
-                            // Single breakpoint or parent of multi-location
-                            bkptNumber = parseInt(result.result('bkpt.number'));
-                        } else {
-                            // Fallback: try to get first location from locations array (MI3+)
+                        // Fallback: if parent number is invalid, try first location (MI3+ multi-location)
+                        if (isNaN(bkptNumber)) {
                             const locations = result.result('bkpt.locations');
                             if (locations && locations.length > 0) {
                                 bkptNumber = parseInt(MINode.valueOf(locations[0], 'number'));
-                            } else {
-                                // Last resort: try direct number field
-                                bkptNumber = parseInt(result.result('bkpt.number'));
                             }
                         }
                         

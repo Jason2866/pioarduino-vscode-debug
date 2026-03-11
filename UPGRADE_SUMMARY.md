@@ -16,19 +16,14 @@ const bkptNumber = parseInt(result.result('bkpt.number'));
 **After (MI2/MI3/MI4 compatible):**
 ```typescript
 // Handle both single and multi-location breakpoints
-const bkptData = result.result('bkpt');
-let bkptNumber: number;
+// MI3+ multi-location breakpoints still have parent bkpt object with number
+let bkptNumber = parseInt(result.result('bkpt.number'));
 
-if (bkptData) {
-    // Single breakpoint or parent of multi-location
-    bkptNumber = parseInt(result.result('bkpt.number'));
-} else {
-    // Fallback: try to get first location from locations array (MI3+)
+// Fallback: if parent number is invalid, try first location (MI3+ multi-location)
+if (isNaN(bkptNumber)) {
     const locations = result.result('bkpt.locations');
     if (locations && locations.length > 0) {
         bkptNumber = parseInt(MINode.valueOf(locations[0], 'number'));
-    } else {
-        bkptNumber = parseInt(result.result('bkpt.number'));
     }
 }
 

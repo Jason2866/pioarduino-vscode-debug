@@ -48,19 +48,14 @@ this.sendCommand(`break-insert ${args}`).then((result) => {
 ```typescript
 this.sendCommand(`break-insert ${args}`).then((result) => {
     if (result.resultRecords.resultClass === 'done') {
-        // Try standard format first (MI2/MI3 single breakpoint)
-        const bkptData = result.result('bkpt');
-        let bkptNumber: number;
+        // Try standard format first (MI2/MI3 single or parent breakpoint)
+        let bkptNumber = parseInt(result.result('bkpt.number'));
         
-        if (bkptData) {
-            bkptNumber = parseInt(result.result('bkpt.number'));
-        } else {
-            // Fallback for MI3 multi-location format
+        // Fallback: if parent number is invalid, try first location (MI3+ multi-location)
+        if (isNaN(bkptNumber)) {
             const locations = result.result('bkpt.locations');
             if (locations && locations.length > 0) {
                 bkptNumber = parseInt(MINode.valueOf(locations[0], 'number'));
-            } else {
-                bkptNumber = parseInt(result.result('bkpt.number'));
             }
         }
         
@@ -79,9 +74,10 @@ this.sendCommand(`break-insert ${args}`).then((result) => {
 
 **Benefits:**
 - ✅ Works with MI2 single breakpoints
-- ✅ Works with MI3 multi-location breakpoints
+- ✅ Works with MI3 multi-location breakpoints (parent number always exists)
 - ✅ Works with MI4 (same structure as MI3 for breakpoints)
 - ✅ Proper error handling for invalid responses
+- ✅ Simplified logic without unreachable code paths
 
 ## Decision Tree
 
@@ -89,31 +85,29 @@ this.sendCommand(`break-insert ${args}`).then((result) => {
 Breakpoint Response Received
          |
          v
-    Has 'bkpt' field?
+  Parse 'bkpt.number'
+         |
+    Is valid number?
          |
     Yes  |  No
      |   |   |
      v   |   v
-Extract  | Try 'locations' array
-number   |        |
+  Success | Try 'bkpt.locations' array
+     |   |        |
      |   |   Has locations?
      |   |        |
      |   |   Yes  |  No
      |   |    |   |   |
      |   |    v   |   v
-     |   | Extract |  Fallback to
-     |   | first   |  'bkpt.number'
-     |   | location|
+     |   | Extract | Error:
+     |   | first   | Invalid
+     |   | location| response
      |   |    |    |
-     v   v    v    v
-      Validate number
-           |
-      Is valid number?
-           |
-      Yes  |  No
-       |   |   |
-       v   |   v
-    Success | Error
+     |   v    v    v
+     | Success  Error
+     |    |       |
+     v    v       v
+   Done  Done   Fail
 ```
 
 ## Testing Strategy

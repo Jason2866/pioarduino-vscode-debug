@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-location breakpoint parsing for template functions
 - Compatibility with GDB 12.0+ default MI4 mode
 - Breakpoint script field handling (MI4 list format)
+- **Function breakpoint handling**: Fixed incorrect array access in `setFunctionBreakPointsRequest`
+- **Null handling**: Proper filtering of failed breakpoint results
 
 ### Technical Details
 
@@ -35,12 +37,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced `addBreakPoint()` method with MI3/MI4 support
   - Added `mi-async` initialization command
   - Improved error handling for invalid breakpoint numbers
+- `src/backend/adapter.ts`:
+  - Fixed `setFunctionBreakPointsRequest` to properly handle breakpoint objects
+  - Corrected null handling and object property access
 
 #### New Files
 - `__tests__/mi2/breakpoint-parsing.test.ts` - Comprehensive breakpoint parsing tests
+- `__tests__/backend/breakpoint-error-handling.test.ts` - Null handling and error tests
 - `MI_UPGRADE.md` - MI3/MI4 upgrade documentation
 - `README.md` - Project documentation
 - `CHANGELOG.md` - This file
+- `CODE_REVIEW_FIX.md` - Simplified logic documentation
+- `NULL_HANDLING_FIX.md` - Null handling fix documentation
 
 ### Compatibility
 
@@ -70,14 +78,15 @@ No breaking changes. The extension automatically detects and adapts to the MI ve
 ### Testing
 
 All tests passing:
-- 20 new breakpoint parsing tests
+- 20 breakpoint parsing tests (MI2/MI3/MI4)
+- 16 error handling and null safety tests
 - 60 existing workflow tests
-- Total: 80 tests, 100% pass rate
+- Total: 96 tests, 100% pass rate
 
 ```bash
 npm test
-# Test Suites: 2 passed, 2 total
-# Tests:       80 passed, 80 total
+# Test Suites: 3 passed, 3 total
+# Tests:       96 passed, 96 total
 ```
 
 ### Known Issues

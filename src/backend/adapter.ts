@@ -577,8 +577,13 @@ export class GDBDebugSession extends DebugSession {
                 const results = await Promise.all(promises);
                 const breakpoints: any[] = [];
                 results.forEach((result) => {
-                    if (result[0]) {
-                        breakpoints.push({ line: result[1].line });
+                    // Filter out null results (failed breakpoints) and use breakpoint object properties
+                    if (result !== null) {
+                        breakpoints.push({ 
+                            line: result.line,
+                            id: result.number,
+                            verified: true
+                        });
                     }
                 });
                 response.body = { breakpoints };
