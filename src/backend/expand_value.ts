@@ -16,7 +16,6 @@ export function isExpandable(value: string): number {
     }
     if (value.startsWith('{...}')) {
         /** Determines if a value string is expandable. */
-        value = value.trim();
         return 2;
     }
     if (value[0] === '{') {
