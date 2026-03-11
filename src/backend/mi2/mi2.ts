@@ -293,6 +293,7 @@ export class MI2 extends EventEmitter {
         return this._sendCommandSequence(commands);
     }
 
+    /** Sends MI commands in order. */
     _sendCommandSequence(commands: string[]): Promise<boolean> {
         return new Promise((resolve, reject) => {
             const executeNext = ((remaining: string[]) => {
@@ -312,14 +313,17 @@ export class MI2 extends EventEmitter {
         });
     }
 
+    /** Changes value via gdb-set var. */
     changeVariable(name: string, rawValue: string): Promise<MINode> {
         return this.sendCommand('gdb-set var ' + name + '=' + rawValue);
     }
 
+    /** Sets a condition on a breakpoint. */
     setBreakPointCondition(breakpointNumber: number, condition: string): Promise<MINode> {
         return this.sendCommand('break-condition ' + breakpointNumber + ' ' + condition);
     }
 
+    /** Inserts a breakpoint via break-insert. */
     addBreakPoint(breakpoint: any): Promise<any> {
         return new Promise((resolve, reject) => {
             let args = '';
@@ -377,6 +381,7 @@ export class MI2 extends EventEmitter {
         });
     }
 
+    /** Removes breakpoints by number. */
     removeBreakpoints(breakpointNumbers: number[]): Promise<boolean> {
         return new Promise((resolve, reject) => {
             if (breakpointNumbers.length === 0) {
@@ -393,6 +398,7 @@ export class MI2 extends EventEmitter {
         });
     }
 
+    /** Retrieves info for a single frame. */
     getFrame(threadId: number, frameLevel: number): Promise<any> {
         return new Promise((resolve, reject) => {
             const cmd = `stack-info-frame --thread ${threadId} --frame ${frameLevel}`;
@@ -423,6 +429,7 @@ export class MI2 extends EventEmitter {
         });
     }
 
+    /** Retrieves a slice of the call stack. */
     getStack(threadId: number, startFrame: number, levels: number): Promise<any[]> {
         return new Promise((resolve, reject) => {
             this.sendCommand(`stack-list-frames --thread ${threadId} ${startFrame} ${levels}`).then(
@@ -457,6 +464,7 @@ export class MI2 extends EventEmitter {
         });
     }
 
+    /** Retrieves local variables via stack-list-variables. */
     async getStackVariables(threadId: number, frameLevel: number): Promise<any[]> {
         const result = await this.sendCommand(
             `stack-list-variables --thread ${threadId} --frame ${frameLevel} --simple-values`
@@ -472,6 +480,7 @@ export class MI2 extends EventEmitter {
         return vars;
     }
 
+    /** Reads memory and returns hex string. */
     async examineMemory(address: number, length: number): Promise<string> {
         let result = '';
         let currentAddress = address;
@@ -487,6 +496,7 @@ export class MI2 extends EventEmitter {
         return result;
     }
 
+    /** Evaluates an expression via data-evaluate-expression. */
     evalExpression(expression: string): Promise<MINode> {
         return new Promise((resolve, reject) => {
             this.sendCommand('data-evaluate-expression ' + expression).then(
@@ -498,36 +508,44 @@ export class MI2 extends EventEmitter {
         });
     }
 
+    /** Creates a var object via var-create. */
     async varCreate(expression: string, name: string = '-'): Promise<VariableObject> {
         const result = await this.sendCommand(`var-create ${name} @ "${expression}"`);
         return new VariableObject(result.result(''));
     }
 
+    /** Evaluates a var object via var-evaluate-expression. */
     async varEvalExpression(name: string): Promise<MINode> {
         return this.sendCommand(`var-evaluate-expression ${name}`);
     }
 
+    /** Lists children via var-list-children. */
     async varListChildren(name: string): Promise<VariableObject[]> {
         const result = await this.sendCommand(`var-list-children --all-values ${name}`);
         return (result.result('children') || []).map((child: any) => new VariableObject(child[1]));
     }
 
+    /** Updates var objects via var-update. */
     async varUpdate(name: string = '*'): Promise<MINode> {
         return this.sendCommand(`var-update --all-values ${name}`);
     }
 
+    /** Assigns a value via var-assign. */
     async varAssign(name: string, value: string): Promise<MINode> {
         return this.sendCommand(`var-assign ${name} ${value}`);
     }
 
+    /** Emits msg without trailing newline. */
     logNoNewLine(type: string, message: string): void {
         this.emit('msg', type, message);
     }
 
+    /** Emits msg with newline as needed. */
     log(type: string, message: string): void {
         this.emit('msg', type, message[message.length - 1] === '\n' ? message : message + '\n');
     }
 
+    /** Sends a user-typed command (MI or console). */
     sendUserInput(command: string): Promise<MINode> {
         if (command.startsWith('-')) {
             return this.sendCommand(command.substr(1));
@@ -535,6 +553,7 @@ export class MI2 extends EventEmitter {
         return this.sendCommand(`interpreter-exec console "${command}"`);
     }
 
+    /** Writes raw MI command to stdin. */
     sendRaw(raw: string): void {
         if (this.printCalls) {
             this.log('log', raw);
@@ -542,6 +561,7 @@ export class MI2 extends EventEmitter {
         this.process.stdin.write(raw + '\n');
     }
 
+    /** Sends numbered MI command; resolves on reply. */
     sendCommand(command: string, suppressErrors: boolean = false): Promise<MINode> {
         const token = this.currentToken++;
         return new Promise((resolve, reject) => {
@@ -561,6 +581,7 @@ export class MI2 extends EventEmitter {
         });
     }
 
+    /** True if GDB child is running. */
     isReady(): boolean {
         return !!this.process;
     }

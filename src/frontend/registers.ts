@@ -2,11 +2,13 @@ import * as vscode from 'vscode';
 import { NumberFormat } from '../common';
 import { hexFormat, binaryFormat, extractBits } from '../utils';
 
+/** Classifies register tree node types. */
 export enum RecordType {
     Register = 0,
     Field = 1,
 }
 
+/** TreeItem for registers panel. */
 export class TreeNode extends vscode.TreeItem {
     constructor(
         public label: string,
@@ -23,6 +25,7 @@ export class TreeNode extends vscode.TreeItem {
     }
 }
 
+/** Base for register tree nodes. */
 export class BaseNode {
     public format: NumberFormat = NumberFormat.Auto;
     public expanded: boolean = false;
@@ -46,6 +49,7 @@ export class BaseNode {
     }
 }
 
+/** CPU register node; may have FieldNode children. */
 export class RegisterNode extends BaseNode {
     public name: string;
     public index: number;
@@ -151,6 +155,7 @@ export class RegisterNode extends BaseNode {
     }
 }
 
+/** Named bit-field within special registers. */
 export class FieldNode extends BaseNode {
     constructor(
         public name: string,
@@ -214,6 +219,7 @@ export class FieldNode extends BaseNode {
     }
 }
 
+/** TreeDataProvider for platformio-debug.registers. */
 export class RegisterTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     private _onDidChangeTreeData = new vscode.EventEmitter<void>();
     public onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -223,10 +229,12 @@ export class RegisterTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     private registerMap: { [index: number]: RegisterNode } = {};
     private initialSettings: any[];
 
+    /** Refreshes the tree view. */
     refresh(): void {
         this._onDidChangeTreeData.fire();
     }
 
+    /** Serialises settings for persistence. */
     dumpSettings(): any[] {
         const settings: any[] = [];
         this.registers.forEach((reg) => {
@@ -235,6 +243,7 @@ export class RegisterTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         return settings;
     }
 
+    /** Fetches register list and current values. */
     fetchRegisterList(): void {
         if (!vscode.debug.activeDebugSession) {
             return;
@@ -265,6 +274,7 @@ export class RegisterTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         });
     }
 
+    /** Returns the tree item unchanged. */
     getTreeItem(element: TreeNode): TreeNode {
         return element;
     }
@@ -309,6 +319,7 @@ export class RegisterTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         this.refresh();
     }
 
+    /** Updates register values from array. */
     updateRegisterValues(values: any[]): void {
         values.forEach((val) => {
             this.registerMap[val.number].setValue(val.value);
@@ -316,6 +327,7 @@ export class RegisterTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         this.refresh();
     }
 
+    /** Returns child nodes for display. */
     getChildren(element?: TreeNode): any[] {
         this.viewExpanded = true;
         if (!vscode.debug.activeDebugSession) {
@@ -336,6 +348,7 @@ export class RegisterTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         return [new TreeNode('Loading...', vscode.TreeItemCollapsibleState.None, 'message', null)];
     }
 
+    /** Clears register state on termination. */
     debugSessionTerminated(): void {
         this.loaded = false;
         this.registers = [];
@@ -343,6 +356,7 @@ export class RegisterTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         this.refresh();
     }
 
+    /** Restores saved settings on start. */
     debugSessionStarted(savedState: any[]): void {
         this.loaded = false;
         this.registers = [];
@@ -350,11 +364,13 @@ export class RegisterTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         this.initialSettings = savedState;
     }
 
+    /** Refreshes values when target stops. */
     debugStopped(): void {
         if (this.viewExpanded) {
             this.fetchRegisterList();
         }
     }
 
+    /** No-op on continue. */
     debugContinued(): void {}
 }

@@ -266,6 +266,7 @@ export class PeripheralNode extends BaseNode {
 // ClusterNode
 // ============================================================================
 
+/** Register cluster at a common offset. */
 export class ClusterNode extends BaseNode {
     public name: string;
     public description: string;
@@ -354,6 +355,7 @@ export class ClusterNode extends BaseNode {
 // RegisterNode
 // ============================================================================
 
+/** Single memory-mapped register with fields. */
 export class RegisterNode extends BaseNode {
     public name: string;
     public description: string;
@@ -583,6 +585,7 @@ export class RegisterNode extends BaseNode {
 // FieldNode
 // ============================================================================
 
+/** Named bit-field within a register. */
 export class FieldNode extends BaseNode {
     public name: string;
     public description: string;
@@ -736,6 +739,7 @@ export class FieldNode extends BaseNode {
 // PeripheralTreeProvider
 // ============================================================================
 
+/** TreeDataProvider for platformio-debug.peripherals. */
 export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     private _onDidChangeTreeData = new vscode.EventEmitter<void>();
     public onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -745,10 +749,12 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
     private svdPath: string;
     private initialSettings: any[];
 
+    /** Refreshes the tree view. */
     refresh(): void {
         this._onDidChangeTreeData.fire();
     }
 
+    /** Serialises expansion/format settings. */
     dumpSettings(): any[] {
         const settings: any[] = [];
         this.peripherials.forEach((peripheral) => {
@@ -757,6 +763,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         return settings;
     }
 
+    /** Parses SVD field definitions. */
     _parseFields(fieldDefs: any[], parent: RegisterNode): FieldNode[] {
         const fields: FieldNode[] = [];
         fieldDefs.map((field) => {
@@ -842,6 +849,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         return fields;
     }
 
+    /** Parses SVD register definitions (with dim). */
     _parseRegisters(registerDefs: any[], parent: any): RegisterNode[] {
         const registers: RegisterNode[] = [];
         registerDefs.forEach((reg) => {
@@ -905,6 +913,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         return registers;
     }
 
+    /** Parses SVD cluster definitions (with dim). */
     _parseClusters(clusterDefs: any[], parent: any): ClusterNode[] {
         const clusters: ClusterNode[] = [];
         if (!clusterDefs) {
@@ -970,6 +979,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         return clusters;
     }
 
+    /** Builds a PeripheralNode from SVD peripheral. */
     _parsePeripheral(peripheralDef: any, defaults: any): PeripheralNode {
         const totalLength = parseInteger(peripheralDef.addressBlock[0].size[0]);
         const options: any = {
@@ -1004,6 +1014,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         return peripheral;
     }
 
+    /** Reads/parses SVD XML file. */
     _loadSVD(svdPath: string): Promise<boolean> {
         return new Promise((resolve, reject) => {
             fs.readFile(svdPath, 'utf8', (err, data) => {
@@ -1072,16 +1083,19 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         });
     }
 
+    /** Resolves a dot path to a node. */
     _findNodeByPath(path: string): BaseNode | null {
         const parts = path.split('.');
         const peripheral = this.peripherials.find((p) => p.name === parts[0]);
         return peripheral ? peripheral._findByPath(parts.slice(1)) : null;
     }
 
+    /** Returns the tree item unchanged. */
     getTreeItem(element: TreeNode): TreeNode {
         return element;
     }
 
+    /** Returns child nodes; triggers initial load. */
     getChildren(element?: TreeNode): TreeNode[] {
         this.viewExpanded = true;
         if (!vscode.debug.activeDebugSession) {
@@ -1150,16 +1164,19 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         }
     }
 
+    /** Triggers a register read on expand. */
     onDidExpandElement(event: any): void {
         event.element.node.expanded = true;
         event.element.node.update();
         this.refresh();
     }
 
+    /** Marks node collapsed. */
     onDidCollapseElement(event: any): void {
         event.element.node.expanded = false;
     }
 
+    /** Resets list; records SVD path and settings. */
     debugSessionStarted(svdPath: string, savedState: any[]): void {
         this.peripherials = [];
         this.loaded = false;
@@ -1167,15 +1184,18 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         this.initialSettings = savedState;
     }
 
+    /** Clears list and refreshes. */
     debugSessionTerminated(): void {
         this.peripherials = [];
         this.loaded = false;
         this.refresh();
     }
 
+    /** Updates peripherals on stop. */
     debugStopped(): Promise<void> {
         return this._update();
     }
 
+    /** No-op on continue. */
     debugContinued(): void {}
 }

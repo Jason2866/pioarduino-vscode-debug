@@ -27,6 +27,7 @@ export class VariableObject {
         this.hasMore = !!MINode.valueOf(node, 'has_more');
     }
 
+    /** Applies a -var-update changelist entry. */
     applyChanges(node: any): void {
         this.value = MINode.valueOf(node, 'value');
         if (MINode.valueOf(node, 'type_changed')) {
@@ -37,6 +38,7 @@ export class VariableObject {
         this.hasMore = !!MINode.valueOf(node, 'has_more');
     }
 
+    /** True if this variable has children. */
     isCompound(): boolean {
         return (
             this.numchild > 0 ||
@@ -45,6 +47,7 @@ export class VariableObject {
         );
     }
 
+    /** Converts to DAP Variable. */
     toProtocolVariable(): any {
         return {
             name: this.exp,
@@ -74,6 +77,7 @@ export class MIError {
         Error.captureStackTrace(this, this.constructor);
     }
 
+    /** Returns "<message> (from <source>)". */
     toString(): string {
         return `${(this as any).message} (from ${(this as any).source})`;
     }

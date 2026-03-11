@@ -795,10 +795,12 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    /** Handles configurationDone. */
     protected configurationDoneRequest(response: any, args: any): void {
         this.sendResponse(response);
     }
 
+    /** Handles scopes request. */
     protected scopesRequest(response: any, args: any): void {
         const scopes = new Array<Scope>();
         scopes.push(new Scope('Local', parseInt(args.frameId), false));
@@ -808,6 +810,7 @@ export class GDBDebugSession extends DebugSession {
         this.sendResponse(response);
     }
 
+    /** Creates a numeric handle for a variable. */
     private createVariable(name: string | VariableObject, options?: any): number {
         if (options) {
             return this.variableHandles.create(new ExtendedVariable(name as string, options));
@@ -815,6 +818,7 @@ export class GDBDebugSession extends DebugSession {
         return this.variableHandles.create(name as any);
     }
 
+    /** Finds/creates a handle for a VariableObject. */
     private findOrCreateVariable(variable: VariableObject): number {
         let id: number;
         if (this.variableHandlesReverse.hasOwnProperty(variable.name)) {
@@ -826,6 +830,7 @@ export class GDBDebugSession extends DebugSession {
         return variable.isCompound() ? id : 0;
     }
 
+    /** Fetches/creates a MI var object, applies updates. */
     private async getVarObjByName(expression: string, name: string): Promise<VariableObject> {
         let varObj: VariableObject;
 
@@ -851,6 +856,7 @@ export class GDBDebugSession extends DebugSession {
         return varObj;
     }
 
+    /** Returns local stack variables. */
     private async stackVariablesRequest(
         threadId: number,
         frameLevel: number,
@@ -880,6 +886,7 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    /** Returns global variables. */
     private async globalVariablesRequest(response: any, args: any): Promise<void> {
         const globalVars = this.symbolTable.getGlobalVariables();
         const variables: any[] = [];
@@ -897,6 +904,7 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    /** Returns static variables for the file. */
     private async staticVariablesRequest(
         threadId: number,
         frameLevel: number,
@@ -921,6 +929,7 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    /** Expands children for a GDB expression. */
     private async variableMembersRequest(
         expression: string,
         response: any,
@@ -969,6 +978,7 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    /** Main variables dispatcher. */
     protected async variablesRequest(response: any, args: any): Promise<void> {
         let varRef: any;
 
@@ -1096,6 +1106,7 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    /** Handles evaluate for watch/hover/REPL. */
     protected async evaluateRequest(response: any, args: any): Promise<void> {
         if (args.context === 'watch') {
             try {
@@ -1140,6 +1151,7 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    /** Handles setVariable via -var-assign. */
     protected async setVariableRequest(response: any, args: any): Promise<void> {
         try {
             let varName = args.name;
@@ -1166,6 +1178,7 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    /** Sends exec-interrupt. */
     protected pauseRequest(response: any, args: any): void {
         this.miDebugger.interrupt(args.threadId).then(
             (result) => {
@@ -1177,6 +1190,7 @@ export class GDBDebugSession extends DebugSession {
         );
     }
 
+    /** Sends exec-continue. */
     protected continueRequest(response: any, args: any): void {
         this.miDebugger.continue(args.threadId).then(
             (result) => {
@@ -1189,6 +1203,7 @@ export class GDBDebugSession extends DebugSession {
         );
     }
 
+    /** Step in; uses instruction-level as needed. */
     protected async stepInRequest(response: any, args: any): Promise<void> {
         try {
             let useDisassembly = this.forceDisassembly;
@@ -1213,6 +1228,7 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    /** Sends exec-finish. */
     protected stepOutRequest(response: any, args: any): void {
         this.miDebugger.stepOut(args.threadId).then(
             (result) => {
@@ -1224,6 +1240,7 @@ export class GDBDebugSession extends DebugSession {
         );
     }
 
+    /** Next; uses instruction-level as needed. */
     protected async nextRequest(response: any, args: any): Promise<void> {
         try {
             let useDisassembly = this.forceDisassembly;
@@ -1248,6 +1265,7 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    /** Checks file existence with caching. */
     private checkFileExists(file: string): Promise<boolean> {
         if (!file) {
             return Promise.resolve(false);

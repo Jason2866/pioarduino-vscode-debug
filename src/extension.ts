@@ -74,10 +74,12 @@ class PlatformIODebugExtension {
         );
     }
 
+    /** Returns true if the active session is platformio-debug. */
     private isPIODebugSession(): boolean {
         return vscode.debug.activeDebugSession && vscode.debug.activeDebugSession.type === 'platformio-debug';
     }
 
+    /** Notifies session on editor switch. */
     private activeEditorChanged(editor: vscode.TextEditor): void {
         if (!editor || !this.isPIODebugSession()) {
             return;
@@ -93,6 +95,7 @@ class PlatformIODebugExtension {
         }
     }
 
+    /** Prompts for function name and opens disassembly. */
     private async showDisassembly(): Promise<void> {
         if (!this.isPIODebugSession()) {
             vscode.window.showErrorMessage('No debugging session available');
@@ -146,6 +149,7 @@ class PlatformIODebugExtension {
         }
     }
 
+    /** Toggles/sets forced-disassembly mode. */
     private setForceDisassembly(force?: string): void {
         const doSet = (value: string) => {
             const forced = value === 'Forced';
@@ -179,15 +183,18 @@ class PlatformIODebugExtension {
             );
     }
 
+    /** Removes an entry from memory history. */
     private memoryDeleteHistoryItem(item: any): void {
         const [address, length] = item.label.split('+');
         this.memoryTreeProvider.deleteHistory(address, length);
     }
 
+    /** Clears memory history. */
     private memoryClearHistory(): void {
         this.memoryTreeProvider.clearHistory();
     }
 
+    /** Opens interactive memory examination. */
     private examineMemory(address?: string, length?: string): any {
         function validateInput(input: string): string | null {
             if (/^0x[0-9a-f]{1,8}$/i.test(input) || /^[0-9]+$/i.test(input)) {
@@ -239,6 +246,7 @@ class PlatformIODebugExtension {
             );
     }
 
+    /** Opens a memory content document. */
     private showMemoryContent(address: string, length: string): void {
         vscode.workspace
             .openTextDocument(
@@ -256,6 +264,7 @@ class PlatformIODebugExtension {
             );
     }
 
+    /** Updates a peripheral node and refreshes. */
     private peripheralsUpdateNode(node: any): void {
         node.node.performUpdate().then(
             (result: boolean) => {
@@ -269,6 +278,7 @@ class PlatformIODebugExtension {
         );
     }
 
+    /** Handles selection of a peripheral node. */
     private peripheralsSelectedNode(node: any): void {
         if (node.recordType !== PeripheralRecordType.Field) {
             node.expanded = !node.expanded;
@@ -283,6 +293,7 @@ class PlatformIODebugExtension {
         );
     }
 
+    /** Copies peripheral node value. */
     private peripheralsCopyValue(node: any): void {
         const value = node.node.getCopyValue();
         if (value) {
@@ -290,6 +301,7 @@ class PlatformIODebugExtension {
         }
     }
 
+    /** Sets display format for peripheral node. */
     private async peripheralsSetFormat(node: any): Promise<void> {
         const selected = await vscode.window.showQuickPick([
             { label: 'Auto', description: 'Automatically choose format (Inherits from parent)', value: NumberFormat.Auto },
@@ -301,12 +313,14 @@ class PlatformIODebugExtension {
         this.peripheralProvider.refresh();
     }
 
+    /** Handles selection of a register node. */
     private registersSelectedNode(node: any): void {
         if (node.recordType !== RegisterRecordType.Field) {
             node.expanded = !node.expanded;
         }
     }
 
+    /** Copies register node value. */
     private registersCopyValue(node: any): void {
         const value = node.node.getCopyValue();
         if (value) {
@@ -314,6 +328,7 @@ class PlatformIODebugExtension {
         }
     }
 
+    /** Sets display format for register node. */
     private async registersSetFormat(node: any): Promise<void> {
         const selected = await vscode.window.showQuickPick([
             { label: 'Auto', description: 'Automatically choose format (Inherits from parent)', value: NumberFormat.Auto },
@@ -325,6 +340,7 @@ class PlatformIODebugExtension {
         this.registerProvider.refresh();
     }
 
+    /** Initialises providers on session start. */
     private debugSessionStarted(session: vscode.DebugSession): void {
         if (session.type === 'platformio-debug') {
             this.functionSymbols = null;
@@ -349,6 +365,7 @@ class PlatformIODebugExtension {
         }
     }
 
+    /** Persists state and tears down on termination. */
     private debugSessionTerminated(session: vscode.DebugSession): void {
         if (session.type === 'platformio-debug') {
             this.context.workspaceState.update(
@@ -371,6 +388,7 @@ class PlatformIODebugExtension {
         }
     }
 
+    /** Routes custom events. */
     private receivedCustomEvent(e: vscode.DebugSessionCustomEvent): void {
         if (!this.isPIODebugSession()) {
             return;
@@ -392,6 +410,7 @@ class PlatformIODebugExtension {
         }
     }
 
+    /** Handles stop event. */
     private receivedStopEvent(e: vscode.DebugSessionCustomEvent): void {
         this.peripheralProvider.debugStopped();
         this.registerProvider.debugStopped();
@@ -403,13 +422,16 @@ class PlatformIODebugExtension {
             });
     }
 
+    /** Handles continued event. */
     private receivedContinuedEvent(e: vscode.DebugSessionCustomEvent): void {
         this.peripheralProvider.debugContinued();
         this.registerProvider.debugContinued();
     }
 
+    /** Handles telemetry events. */
     private receivedEvent(e: vscode.DebugSessionCustomEvent): void {}
 
+    /** Appends adapter output to channel. */
     private receivedAdapterOutput(e: vscode.DebugSessionCustomEvent): void {
         if (!this.adapterOutputChannel) {
             this.adapterOutputChannel = vscode.window.createOutputChannel('Adapter Output');
@@ -423,8 +445,14 @@ class PlatformIODebugExtension {
     }
 }
 
+/**
+ * VS Code activation hook.
+ */
 export function activate(context: vscode.ExtensionContext): PlatformIODebugExtension {
     return new PlatformIODebugExtension(context);
 }
 
+/**
+ * VS Code deactivation hook.
+ */
 export function deactivate(): void {}

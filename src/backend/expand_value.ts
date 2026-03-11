@@ -9,6 +9,7 @@ const NULL_PTR_REGEX = /^0x0+\b/;
 const CHAR_CODE_STRING_REGEX = /^(\d+) ['"]/;
 const NUMBER_REGEX = /^\d+(\.\d+)?/;
 
+/** Determines if a value string is expandable. */
 export function isExpandable(value: string): number {
     value = value.trim();
     if (value.length === 0) {
@@ -31,6 +32,7 @@ export function isExpandable(value: string): number {
     return 0;
 }
 
+/** Parses a GDB value string into a DAP variable tree. */
 export function expandValue(
     createVariableReference: (name: string | any, options?: any) => number,
     value: string,

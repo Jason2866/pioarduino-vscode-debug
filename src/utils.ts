@@ -1,3 +1,6 @@
+/**
+ * Formats a number as a zero-padded hexadecimal string.
+ */
 export function hexFormat(value: number, padding: number = 8, includePrefix: boolean = true): string {
     let result = value.toString(16);
     while (result.length < padding) {
@@ -6,6 +9,9 @@ export function hexFormat(value: number, padding: number = 8, includePrefix: boo
     return includePrefix ? '0x' + result : result;
 }
 
+/**
+ * Formats a number as a binary string, with optional nibble grouping.
+ */
 export function binaryFormat(
     value: number,
     padding: number = 0,
@@ -30,6 +36,9 @@ export function binaryFormat(
     return includePrefix ? '0b' + result : result;
 }
 
+/**
+ * Creates a bitmask covering the specified bit range.
+ */
 export function createMask(offset: number, width: number): number {
     let mask = 0;
     const end = offset + width - 1;
@@ -39,10 +48,16 @@ export function createMask(offset: number, width: number): number {
     return mask;
 }
 
+/**
+ * Extracts a bit field from a value.
+ */
 export function extractBits(value: number, offset: number, width: number): number {
     return ((value & createMask(offset, width)) >>> offset) >>> 0;
 }
 
+/**
+ * Parses a URL query string into a key-value map.
+ */
 export function parseQuery(queryString: string): { [key: string]: string } {
     const params: { [key: string]: string } = {};
     const pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
@@ -53,6 +68,9 @@ export function parseQuery(queryString: string): { [key: string]: string } {
     return params;
 }
 
+/**
+ * Encodes a function name and source file into a disassembly:// URI.
+ */
 export function encodeDisassembly(name: string, file: string): string {
     let uri = 'disassembly:///';
     if (file) {
