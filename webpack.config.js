@@ -12,7 +12,7 @@ module.exports = [
             filename: 'extension.js',
             libraryTarget: 'umd',
             globalObject: 'global',
-            library: 'platformio-vscode-debug',
+            library: 'pioarduino-vscode-debug',
         },
         externals: {
             vscode: 'vscode',
@@ -42,7 +42,7 @@ module.exports = [
             filename: 'adapter.js',
             libraryTarget: 'umd',
             globalObject: 'global',
-            library: 'platformio-vscode-debug',
+            library: 'pioarduino-vscode-debug',
         },
         externals: {
             vscode: 'vscode',
