@@ -10,5 +10,5 @@
         "skipLibCheck": true,
         "esModuleInterop": true
     },
-    "exclude": ["node_modules", "dist", ".vscode-test"]
+    "exclude": ["node_modules", "dist", "dist_org", ".vscode-test"]
 }

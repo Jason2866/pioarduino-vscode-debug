@@ -1,7 +1,7 @@
 {
   "name": "pioarduino-vscode-debug",
-  "version": "1.4.1",
-  "description": "PlatformIO Debugger for VSCode",
+  "version": "1.0.0",
+  "description": "pioarduino debugger for VSCode",
   "main": "dist/extension.js",
   "engines": {
     "vscode": "^1.82.0"
@@ -11,8 +11,7 @@
     "url": "https://github.com/Jason2866/pioarduino-vscode-debug.git"
   },
   "scripts": {
-    "build": "webpack --mode production",
-    "postinstall": "node ./node_modules/@types/vscode/bin/install || true"
+    "build": "webpack --mode production"
   },
   "dependencies": {
     "@vscode/debugadapter": "^1.68.0",
