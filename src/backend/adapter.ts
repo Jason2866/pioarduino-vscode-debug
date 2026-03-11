@@ -576,13 +576,20 @@ export class GDBDebugSession extends DebugSession {
             try {
                 const results = await Promise.all(promises);
                 const breakpoints: any[] = [];
-                results.forEach((result) => {
-                    // Filter out null results (failed breakpoints) and use breakpoint object properties
+                // Preserve 1:1 ordering with original breakpoint requests
+                results.forEach((result, index) => {
                     if (result !== null) {
                         breakpoints.push({ 
                             line: result.line,
                             id: result.number,
                             verified: true
+                        });
+                    } else {
+                        // Push unverified placeholder for failed breakpoints
+                        breakpoints.push({
+                            line: 0,
+                            id: 0,
+                            verified: false
                         });
                     }
                 });
@@ -660,15 +667,29 @@ export class GDBDebugSession extends DebugSession {
                     });
                 }
 
-                const results = (await Promise.all(promises)).filter((r) => r !== null);
-                response.body = {
-                    breakpoints: results.map((bp: any) => ({
-                        line: bp.line,
-                        id: bp.number,
-                        verified: true,
-                    })),
-                };
-                this.breakpointMap.set(args.source.path, results);
+                const results = await Promise.all(promises);
+                // Preserve 1:1 ordering with original breakpoint requests
+                const breakpoints: any[] = [];
+                results.forEach((result, index) => {
+                    if (result !== null) {
+                        breakpoints.push({
+                            line: result.line,
+                            id: result.number,
+                            verified: true,
+                        });
+                    } else {
+                        // Push unverified placeholder for failed breakpoints
+                        const requestedLine = args.breakpoints[index]?.line || 0;
+                        breakpoints.push({
+                            line: requestedLine,
+                            id: 0,
+                            verified: false,
+                        });
+                    }
+                });
+                response.body = { breakpoints };
+                // Only store successfully set breakpoints in the map
+                this.breakpointMap.set(args.source.path, results.filter((r) => r !== null));
                 this.sendResponse(response);
             } catch (err) {
                 this.sendErrorResponse(response, 9, err.toString());

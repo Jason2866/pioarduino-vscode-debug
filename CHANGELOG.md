@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Breakpoint script field handling (MI4 list format)
 - **Function breakpoint handling**: Fixed incorrect array access in `setFunctionBreakPointsRequest`
 - **Null handling**: Proper filtering of failed breakpoint results
+- **Breakpoint ordering**: Preserve 1:1 correspondence with DAP specification (unverified placeholders for failed breakpoints)
 
 ### Technical Details
 
@@ -79,14 +80,14 @@ No breaking changes. The extension automatically detects and adapts to the MI ve
 
 All tests passing:
 - 20 breakpoint parsing tests (MI2/MI3/MI4)
-- 16 error handling and null safety tests
+- 18 error handling, null safety, and ordering tests
 - 60 existing workflow tests
-- Total: 96 tests, 100% pass rate
+- Total: 98 tests, 100% pass rate
 
 ```bash
 npm test
 # Test Suites: 3 passed, 3 total
-# Tests:       96 passed, 96 total
+# Tests:       98 passed, 98 total
 ```
 
 ### Known Issues

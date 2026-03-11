@@ -8,9 +8,13 @@ This codebase has been upgraded to support GDB Machine Interface versions 3 and 
 
 ### 1. Enhanced Breakpoint Parsing (`src/backend/mi2/mi2.ts`)
 
+**Important Note on MI Protocol:**
+This extension continues to use the MI2 interpreter (`--interpreter=mi2`) when launching GDB. The changes made are for **output format compatibility**, not a protocol upgrade. The MI2 parser has been enhanced to accept and correctly parse MI3/MI4-style output formats (such as multi-location breakpoints and script-as-list fields) that newer GDB versions may produce, ensuring forward compatibility without changing the runtime interpreter.
+
 **Problem**: 
 - MI3 (GDB 9+) changed the output format for multi-location breakpoints
 - MI4 (GDB 12+) changed the "script" field to be a list instead of a string
+- The MI2 parser needed to handle these newer output formats
 
 **Solution**:
 The `addBreakPoint()` method now handles both single and multi-location breakpoints:

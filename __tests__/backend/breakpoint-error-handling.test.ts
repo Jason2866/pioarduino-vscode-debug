@@ -68,69 +68,133 @@ describe('Breakpoint Error Handling', () => {
     });
   });
 
-  describe('Adapter breakpoint result handling', () => {
-    test('should filter out null results from multiple breakpoints', () => {
+  describe('Adapter breakpoint mapping with ordering preservation', () => {
+    // Helper function that mimics the adapter's mapping logic
+    function mapBreakpointsToDAP(
+      results: Array<any | null>,
+      requestedBreakpoints: Array<{ line: number }>
+    ): Array<{ line: number; id: number; verified: boolean }> {
+      const breakpoints: any[] = [];
+      results.forEach((result, index) => {
+        if (result !== null) {
+          breakpoints.push({
+            line: result.line,
+            id: result.number,
+            verified: true
+          });
+        } else {
+          // Push unverified placeholder for failed breakpoints
+          const requestedLine = requestedBreakpoints[index]?.line || 0;
+          breakpoints.push({
+            line: requestedLine,
+            id: 0,
+            verified: false
+          });
+        }
+      });
+      return breakpoints;
+    }
+
+    test('should preserve 1:1 ordering with mixed null and valid results', () => {
       const results = [
         { number: 1, line: 10, file: 'test.c' },
-        null,
-        { number: 2, line: 20, file: 'test.c' },
         null,
         { number: 3, line: 30, file: 'test.c' }
       ];
+      const requested = [{ line: 10 }, { line: 20 }, { line: 30 }];
 
-      const filtered = results.filter(r => r !== null);
+      const dapBreakpoints = mapBreakpointsToDAP(results, requested);
 
-      expect(filtered.length).toBe(3);
-      expect(filtered[0].number).toBe(1);
-      expect(filtered[1].number).toBe(2);
-      expect(filtered[2].number).toBe(3);
+      expect(dapBreakpoints.length).toBe(3);
+      expect(dapBreakpoints[0]).toEqual({ line: 10, id: 1, verified: true });
+      expect(dapBreakpoints[1]).toEqual({ line: 20, id: 0, verified: false });
+      expect(dapBreakpoints[2]).toEqual({ line: 30, id: 3, verified: true });
     });
 
-    test('should handle all null results gracefully', () => {
+    test('should handle all null results with unverified placeholders', () => {
       const results = [null, null, null];
+      const requested = [{ line: 10 }, { line: 20 }, { line: 30 }];
 
-      const filtered = results.filter(r => r !== null);
+      const dapBreakpoints = mapBreakpointsToDAP(results, requested);
 
-      expect(filtered.length).toBe(0);
+      expect(dapBreakpoints.length).toBe(3);
+      expect(dapBreakpoints[0]).toEqual({ line: 10, id: 0, verified: false });
+      expect(dapBreakpoints[1]).toEqual({ line: 20, id: 0, verified: false });
+      expect(dapBreakpoints[2]).toEqual({ line: 30, id: 0, verified: false });
     });
 
-    test('should map breakpoint objects to DAP format', () => {
+    test('should handle all successful results', () => {
       const results = [
         { number: 1, line: 10, file: 'test.c' },
-        { number: 2, line: 20, file: 'test.c' }
+        { number: 2, line: 20, file: 'test.c' },
+        { number: 3, line: 30, file: 'test.c' }
       ];
+      const requested = [{ line: 10 }, { line: 20 }, { line: 30 }];
 
-      const dapBreakpoints = results
-        .filter(r => r !== null)
-        .map(bp => ({
-          line: bp.line,
-          id: bp.number,
-          verified: true
-        }));
+      const dapBreakpoints = mapBreakpointsToDAP(results, requested);
 
-      expect(dapBreakpoints.length).toBe(2);
+      expect(dapBreakpoints.length).toBe(3);
       expect(dapBreakpoints[0]).toEqual({ line: 10, id: 1, verified: true });
       expect(dapBreakpoints[1]).toEqual({ line: 20, id: 2, verified: true });
+      expect(dapBreakpoints[2]).toEqual({ line: 30, id: 3, verified: true });
     });
 
-    test('should handle mixed null and valid results', () => {
+    test('should preserve ordering with null at start', () => {
+      const results = [
+        null,
+        { number: 2, line: 20, file: 'test.c' },
+        { number: 3, line: 30, file: 'test.c' }
+      ];
+      const requested = [{ line: 10 }, { line: 20 }, { line: 30 }];
+
+      const dapBreakpoints = mapBreakpointsToDAP(results, requested);
+
+      expect(dapBreakpoints.length).toBe(3);
+      expect(dapBreakpoints[0]).toEqual({ line: 10, id: 0, verified: false });
+      expect(dapBreakpoints[1]).toEqual({ line: 20, id: 2, verified: true });
+      expect(dapBreakpoints[2]).toEqual({ line: 30, id: 3, verified: true });
+    });
+
+    test('should preserve ordering with null at end', () => {
+      const results = [
+        { number: 1, line: 10, file: 'test.c' },
+        { number: 2, line: 20, file: 'test.c' },
+        null
+      ];
+      const requested = [{ line: 10 }, { line: 20 }, { line: 30 }];
+
+      const dapBreakpoints = mapBreakpointsToDAP(results, requested);
+
+      expect(dapBreakpoints.length).toBe(3);
+      expect(dapBreakpoints[0]).toEqual({ line: 10, id: 1, verified: true });
+      expect(dapBreakpoints[1]).toEqual({ line: 20, id: 2, verified: true });
+      expect(dapBreakpoints[2]).toEqual({ line: 30, id: 0, verified: false });
+    });
+
+    test('should handle alternating null and valid results', () => {
       const results = [
         { number: 1, line: 10, file: 'test.c' },
         null,
-        { number: 3, line: 30, file: 'test.c' }
+        { number: 3, line: 30, file: 'test.c' },
+        null,
+        { number: 5, line: 50, file: 'test.c' }
+      ];
+      const requested = [
+        { line: 10 },
+        { line: 20 },
+        { line: 30 },
+        { line: 40 },
+        { line: 50 }
       ];
 
-      const dapBreakpoints = results
-        .filter(r => r !== null)
-        .map(bp => ({
-          line: bp.line,
-          id: bp.number,
-          verified: true
-        }));
+      const dapBreakpoints = mapBreakpointsToDAP(results, requested);
 
-      expect(dapBreakpoints.length).toBe(2);
-      expect(dapBreakpoints[0].id).toBe(1);
-      expect(dapBreakpoints[1].id).toBe(3);
+      expect(dapBreakpoints.length).toBe(5);
+      expect(dapBreakpoints[0]).toEqual({ line: 10, id: 1, verified: true });
+      expect(dapBreakpoints[1]).toEqual({ line: 20, id: 0, verified: false });
+      expect(dapBreakpoints[2]).toEqual({ line: 30, id: 3, verified: true });
+      expect(dapBreakpoints[3]).toEqual({ line: 40, id: 0, verified: false });
+      expect(dapBreakpoints[4]).toEqual({ line: 50, id: 5, verified: true });
     });
   });
 
@@ -158,8 +222,8 @@ describe('Breakpoint Error Handling', () => {
       };
 
       expect(Array.isArray(breakpoint)).toBe(false);
-      expect(breakpoint[0]).toBeUndefined();
-      expect(breakpoint[1]).toBeUndefined();
+      expect((breakpoint as any)[0]).toBeUndefined();
+      expect((breakpoint as any)[1]).toBeUndefined();
     });
 
     test('should access properties by name, not by index', () => {

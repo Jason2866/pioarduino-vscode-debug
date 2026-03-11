@@ -7,13 +7,13 @@ This guide explains the changes made to support GDB MI3 and MI4 protocols while 
 ## Visual Comparison
 
 ### MI2 Format (GDB 7.x - 8.x)
-```
+```text
 1^done,bkpt={number="1",addr="0x08000100",func="main",file="main.c",line="10"}
          └─── Single breakpoint with direct fields
 ```
 
 ### MI3 Format (GDB 9.x - 11.x)
-```
+```text
 2^done,bkpt={number="2",addr="<MULTIPLE>",locations=[
                                             {number="2.1",addr="0x100"},
                                             {number="2.2",addr="0x200"}
@@ -22,7 +22,7 @@ This guide explains the changes made to support GDB MI3 and MI4 protocols while 
 ```
 
 ### MI4 Format (GDB 12.x+)
-```
+```text
 3^done,bkpt={number="3",script=["print x","continue"],addr="0x300"}
                               └─── Script field is now a list
 ```
@@ -81,7 +81,7 @@ this.sendCommand(`break-insert ${args}`).then((result) => {
 
 ## Decision Tree
 
-```
+```text
 Breakpoint Response Received
          |
          v
@@ -163,19 +163,19 @@ Breakpoint Response Received
 ## Real-World Examples
 
 ### Arduino/PlatformIO
-```gdb
+```console
 (gdb) -break-insert sketch.ino:15
 1^done,bkpt={number="1",func="setup",file="sketch.ino",line="15"}
 ```
 
 ### ESP32 Multi-Core
-```gdb
+```console
 (gdb) -break-insert main.c:50
 2^done,bkpt={number="2",thread-groups=["i1","i2"],addr="0x400d1234"}
 ```
 
 ### STM32 Template Function (MI3)
-```gdb
+```console
 (gdb) -break-insert template.cpp:20
 3^done,bkpt={number="3",addr="<MULTIPLE>",locations=[
     {number="3.1",func="template<int>",addr="0x08000300"},
@@ -213,7 +213,7 @@ Breakpoint Response Received
 
 ### Overhead Analysis
 
-```
+```text
 Before: 1 field access
 After:  1-3 field accesses + 1 validation
 
@@ -222,7 +222,7 @@ Impact: Negligible (<1ms per breakpoint)
 
 ### Memory Usage
 
-```
+```text
 Before: ~100 bytes per breakpoint
 After:  ~100 bytes per breakpoint (no change)
 ```
