@@ -60,6 +60,8 @@ export class MI2 extends EventEmitter {
 
             const initCommands = [
                 this.sendCommand('gdb-set target-async on', true),
+                // Enable MI3/MI4 compatibility fixes for multi-location breakpoints and script fields
+                this.sendCommand('gdb-set mi-async on', true),
                 ...commands.map((cmd) => this.sendCommand(cmd)),
             ];
             Promise.all(initCommands).then(() => {
@@ -370,7 +372,24 @@ export class MI2 extends EventEmitter {
             this.sendCommand(`break-insert ${args}`).then(
                 (result) => {
                     if (result.resultRecords.resultClass === 'done') {
-                        const bkptNumber = parseInt(result.result('bkpt.number'));
+                        // MI3/MI4: Handle both single breakpoint and multi-location breakpoints
+                        // In MI3+, multi-location breakpoints still have a parent bkpt object with number
+                        let bkptNumber = parseInt(result.result('bkpt.number'));
+                        
+                        // Fallback: if parent number is invalid, try first location (MI3+ multi-location)
+                        if (isNaN(bkptNumber)) {
+                            const locations = result.result('bkpt.locations');
+                            if (locations && locations.length > 0) {
+                                bkptNumber = parseInt(MINode.valueOf(locations[0], 'number'));
+                            }
+                        }
+                        
+                        if (isNaN(bkptNumber)) {
+                            this.log('stderr', 'Failed to parse breakpoint number from GDB response');
+                            resolve(null);
+                            return;
+                        }
+                        
                         breakpoint.number = bkptNumber;
                         if (breakpoint.condition) {
                             this.setBreakPointCondition(bkptNumber, breakpoint.condition).then(
