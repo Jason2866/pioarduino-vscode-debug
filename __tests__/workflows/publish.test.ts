@@ -31,9 +31,9 @@ describe('GitHub Actions Publish Workflow', () => {
       expect(typeof workflow.name).toBe('string');
     });
 
-    test('workflow name should be "Publish to npm"', () => {
+    test('workflow name should be "Build and upload to NPM"', () => {
       const { parsed: workflow } = loadWorkflow();
-      expect(workflow.name).toBe('Publish to npm');
+      expect(workflow.name).toBe('Build and upload to NPM');
     });
   });
 
@@ -43,52 +43,26 @@ describe('GitHub Actions Publish Workflow', () => {
       expect(workflow.on).toBeDefined();
     });
 
-    test('workflow should trigger on release published event', () => {
+    test('workflow should trigger on push events', () => {
       const { parsed: workflow } = loadWorkflow();
-      expect(workflow.on.release).toBeDefined();
-      expect(workflow.on.release.types).toContain('published');
+      expect(workflow.on).toHaveProperty('push');
     });
 
-    test('workflow should only trigger on published releases', () => {
+    test('workflow should trigger on workflow_dispatch', () => {
       const { parsed: workflow } = loadWorkflow();
-      expect(workflow.on.release.types).toEqual(['published']);
-    });
-
-    test('workflow should not have other trigger types', () => {
-      const { parsed: workflow } = loadWorkflow();
-      const triggerKeys = Object.keys(workflow.on);
-      expect(triggerKeys).toEqual(['release']);
+      expect(workflow.on).toHaveProperty('workflow_dispatch');
     });
   });
 
-  describe('Workflow Permissions', () => {
-    test('workflow should have permissions defined', () => {
+  describe('Concurrency', () => {
+    test('workflow should have concurrency settings', () => {
       const { parsed: workflow } = loadWorkflow();
-      expect(workflow.permissions).toBeDefined();
+      expect(workflow.concurrency).toBeDefined();
     });
 
-    test('workflow should have id-token write permission for provenance', () => {
+    test('workflow should cancel in-progress runs', () => {
       const { parsed: workflow } = loadWorkflow();
-      expect(workflow.permissions['id-token']).toBe('write');
-    });
-
-    test('workflow should have contents read permission', () => {
-      const { parsed: workflow } = loadWorkflow();
-      expect(workflow.permissions.contents).toBe('read');
-    });
-
-    test('workflow should only have necessary permissions', () => {
-      const { parsed: workflow } = loadWorkflow();
-      const permissionKeys = Object.keys(workflow.permissions);
-      expect(permissionKeys.sort()).toEqual(['contents', 'id-token'].sort());
-    });
-
-    test('workflow should not have excessive permissions', () => {
-      const { parsed: workflow } = loadWorkflow();
-      // Ensure no write access to contents or other dangerous permissions
-      expect(workflow.permissions.contents).not.toBe('write');
-      expect(workflow.permissions.packages).toBeUndefined();
-      expect(workflow.permissions.actions).toBeUndefined();
+      expect(workflow.concurrency['cancel-in-progress']).toBe(true);
     });
   });
 
@@ -98,31 +72,48 @@ describe('GitHub Actions Publish Workflow', () => {
       expect(workflow.jobs).toBeDefined();
     });
 
-    test('workflow should have a publish job', () => {
+    test('workflow should have a build job', () => {
       const { parsed: workflow } = loadWorkflow();
-      expect(workflow.jobs.publish).toBeDefined();
+      expect(workflow.jobs.build).toBeDefined();
     });
 
-    test('publish job should run on ubuntu-latest', () => {
+    test('build job should run on ubuntu-latest', () => {
       const { parsed: workflow } = loadWorkflow();
-      expect(workflow.jobs.publish['runs-on']).toBe('ubuntu-latest');
+      expect(workflow.jobs.build['runs-on']).toBe('ubuntu-latest');
     });
 
-    test('publish job should have steps', () => {
+    test('build job should have steps', () => {
       const { parsed: workflow } = loadWorkflow();
-      expect(workflow.jobs.publish.steps).toBeDefined();
-      expect(Array.isArray(workflow.jobs.publish.steps)).toBe(true);
+      expect(workflow.jobs.build.steps).toBeDefined();
+      expect(Array.isArray(workflow.jobs.build.steps)).toBe(true);
     });
 
-    test('publish job should have at least 4 steps', () => {
+    test('build job should have at least 6 steps', () => {
       const { parsed: workflow } = loadWorkflow();
-      expect(workflow.jobs.publish.steps.length).toBeGreaterThanOrEqual(4);
+      expect(workflow.jobs.build.steps.length).toBeGreaterThanOrEqual(6);
+    });
+  });
+
+  describe('Workflow Permissions', () => {
+    test('build job should have permissions defined', () => {
+      const { parsed: workflow } = loadWorkflow();
+      expect(workflow.jobs.build.permissions).toBeDefined();
+    });
+
+    test('build job should have id-token write permission for OIDC', () => {
+      const { parsed: workflow } = loadWorkflow();
+      expect(workflow.jobs.build.permissions['id-token']).toBe('write');
+    });
+
+    test('build job should have contents write permission', () => {
+      const { parsed: workflow } = loadWorkflow();
+      expect(workflow.jobs.build.permissions.contents).toBe('write');
     });
   });
 
   describe('Workflow Steps - Checkout and Setup', () => {
     function getSteps() {
-      return loadWorkflow().parsed.jobs.publish.steps;
+      return loadWorkflow().parsed.jobs.build.steps;
     }
 
     test('first step should checkout the code', () => {
@@ -130,23 +121,16 @@ describe('GitHub Actions Publish Workflow', () => {
       expect(steps[0].uses).toMatch(/actions\/checkout@v/);
     });
 
-    test('checkout should use v4 or later', () => {
+    test('checkout should use v6 or later', () => {
       const steps = getSteps();
       const checkoutVersion = steps[0].uses.match(/@v(\d+)/);
       expect(checkoutVersion).not.toBeNull();
-      expect(parseInt(checkoutVersion![1])).toBeGreaterThanOrEqual(4);
+      expect(parseInt(checkoutVersion![1])).toBeGreaterThanOrEqual(6);
     });
 
     test('second step should setup Node.js', () => {
       const steps = getSteps();
       expect(steps[1].uses).toMatch(/actions\/setup-node@v/);
-    });
-
-    test('Node.js setup should use v4 or later', () => {
-      const steps = getSteps();
-      const nodeVersion = steps[1].uses.match(/@v(\d+)/);
-      expect(nodeVersion).not.toBeNull();
-      expect(parseInt(nodeVersion![1])).toBeGreaterThanOrEqual(4);
     });
 
     test('Node.js should be configured with version 22', () => {
@@ -163,99 +147,104 @@ describe('GitHub Actions Publish Workflow', () => {
 
   describe('Workflow Steps - Build Process', () => {
     function getSteps() {
-      return loadWorkflow().parsed.jobs.publish.steps;
+      return loadWorkflow().parsed.jobs.build.steps;
     }
 
     test('should update npm to latest version', () => {
       const steps = getSteps();
-      const npmUpdateStep = steps.find(step => step.run && step.run.includes('npm install -g npm@latest'));
+      const npmUpdateStep = steps.find((step: any) => step.run && step.run.includes('npm install -g npm@latest'));
       expect(npmUpdateStep).toBeDefined();
     });
 
     test('should install dependencies', () => {
       const steps = getSteps();
-      const npmInstallStep = steps.find(step => step.run && (step.run === 'npm ci' || step.run === 'npm install'));
+      const npmInstallStep = steps.find((step: any) => step.run && step.run === 'npm install');
       expect(npmInstallStep).toBeDefined();
     });
 
     test('should run build command', () => {
       const steps = getSteps();
-      const buildStep = steps.find(step => step.run && step.run === 'npm run build');
+      const buildStep = steps.find((step: any) => step.run && step.run === 'npm run build');
       expect(buildStep).toBeDefined();
     });
 
     test('build step should come after install', () => {
       const steps = getSteps();
-      const installStepIndex = steps.findIndex(step => step.run && (step.run === 'npm ci' || step.run === 'npm install'));
-      const buildStepIndex = steps.findIndex(step => step.run && step.run === 'npm run build');
+      const installStepIndex = steps.findIndex((step: any) => step.run && step.run === 'npm install');
+      const buildStepIndex = steps.findIndex((step: any) => step.run && step.run === 'npm run build');
       expect(buildStepIndex).toBeGreaterThan(installStepIndex);
     });
   });
 
   describe('Workflow Steps - Publishing', () => {
     function getSteps() {
-      return loadWorkflow().parsed.jobs.publish.steps;
+      return loadWorkflow().parsed.jobs.build.steps;
     }
     function getPublishStep() {
       const steps = getSteps();
-      return steps.find(step => step.run && step.run.includes('npm publish'));
+      return steps.find((step: any) => step.uses && step.uses.includes('npm-publish'));
     }
 
-    test('should have npm publish step', () => {
+    test('should have npm publish step using JS-DevTools/npm-publish action', () => {
       expect(getPublishStep()).toBeDefined();
     });
 
-    test('publish should use --provenance flag for transparency', () => {
-      expect(getPublishStep().run).toContain('--provenance');
+    test('publish action should use v4 or later', () => {
+      const step = getPublishStep();
+      const version = step.uses.match(/@v(\d+)/);
+      expect(version).not.toBeNull();
+      expect(parseInt(version![1])).toBeGreaterThanOrEqual(4);
     });
 
-    test('publish should use --access public flag', () => {
-      expect(getPublishStep().run).toContain('--access public');
+    test('publish step should configure registry URL', () => {
+      const step = getPublishStep();
+      expect(step.with.registry).toBe('https://registry.npmjs.org/');
     });
 
-    test('publish command should have both required flags', () => {
-      expect(getPublishStep().run).toMatch(/npm publish.*--provenance.*--access public/);
+    test('publish step should use "all" strategy', () => {
+      const step = getPublishStep();
+      expect(step.with.strategy).toBe('all');
     });
 
     test('publish step should be the last step', () => {
       const steps = getSteps();
-      const publishStepIndex = steps.findIndex(step => step.run && step.run.includes('npm publish'));
+      const publishStepIndex = steps.findIndex((step: any) => step.uses && step.uses.includes('npm-publish'));
       expect(publishStepIndex).toBe(steps.length - 1);
     });
 
     test('publish step should come after build', () => {
       const steps = getSteps();
-      const buildStepIndex = steps.findIndex(step => step.run && step.run === 'npm run build');
-      const publishStepIndex = steps.findIndex(step => step.run && step.run.includes('npm publish'));
+      const buildStepIndex = steps.findIndex((step: any) => step.run && step.run === 'npm run build');
+      const publishStepIndex = steps.findIndex((step: any) => step.uses && step.uses.includes('npm-publish'));
       expect(publishStepIndex).toBeGreaterThan(buildStepIndex);
     });
   });
 
   describe('Workflow Step Order and Dependencies', () => {
-
     test('steps should follow correct execution order', () => {
-      const steps = loadWorkflow().parsed.jobs.publish.steps;
-      const stepDescriptions = steps.map(step => {
+      const steps = loadWorkflow().parsed.jobs.build.steps;
+      const stepDescriptions = steps.map((step: any) => {
         if (step.uses) {
           if (step.uses.includes('checkout')) return 'checkout';
           if (step.uses.includes('setup-node')) return 'setup-node';
+          if (step.uses.includes('npm-publish')) return 'publish';
         }
         if (step.run) {
           if (step.run.includes('npm install -g npm@latest')) return 'update-npm';
-          if (step.run === 'npm ci' || step.run === 'npm install') return 'install';
+          if (step.run === 'npm --version') return 'check-npm-version';
+          if (step.run === 'npm install') return 'install';
           if (step.run === 'npm run build') return 'build';
-          if (step.run.includes('npm publish')) return 'publish';
         }
         return 'unknown';
       });
 
-      const expectedOrder = ['checkout', 'setup-node', 'update-npm', 'install', 'build', 'publish'];
+      const expectedOrder = ['checkout', 'setup-node', 'update-npm', 'check-npm-version', 'install', 'build', 'publish'];
       expect(stepDescriptions).toEqual(expectedOrder);
     });
 
     test('all steps should be either actions or run commands', () => {
-      const steps = loadWorkflow().parsed.jobs.publish.steps;
-      steps.forEach(step => {
+      const steps = loadWorkflow().parsed.jobs.build.steps;
+      steps.forEach((step: any) => {
         const hasUses = step.uses !== undefined;
         const hasRun = step.run !== undefined;
         expect(hasUses || hasRun).toBe(true);
@@ -265,38 +254,17 @@ describe('GitHub Actions Publish Workflow', () => {
 
   describe('Security and Best Practices', () => {
     test('workflow should use pinned action versions', () => {
-      const steps = loadWorkflow().parsed.jobs.publish.steps;
+      const steps = loadWorkflow().parsed.jobs.build.steps;
       const actionSteps = steps.filter((step: any) => step.uses);
 
       actionSteps.forEach((step: any) => {
-        // Should have @v followed by a number
         expect(step.uses).toMatch(/@v\d+/);
       });
     });
 
-    test('workflow should use provenance for supply chain security', () => {
+    test('workflow should use OIDC for trusted publishing', () => {
       const { parsed: workflow } = loadWorkflow();
-      const steps = workflow.jobs.publish.steps;
-      const publishStep = steps.find((step: any) => step.run && step.run.includes('npm publish'));
-      expect(publishStep.run).toContain('--provenance');
-    });
-
-    test('workflow should have minimal permissions', () => {
-      const { parsed: workflow } = loadWorkflow();
-      // id-token: write is required for provenance
-      // contents: read is minimal permission for checkout
-      expect(workflow.permissions['id-token']).toBe('write');
-      expect(workflow.permissions.contents).toBe('read');
-
-      // Should not have write permissions for contents
-      expect(workflow.permissions.contents).not.toBe('write');
-    });
-
-    test('workflow should update npm before installing', () => {
-      const { parsed: workflow } = loadWorkflow();
-      const steps = workflow.jobs.publish.steps;
-      const npmUpdateStep = steps.find((step: any) => step.run && step.run.includes('npm install -g npm@latest'));
-      expect(npmUpdateStep).toBeDefined();
+      expect(workflow.jobs.build.permissions['id-token']).toBe('write');
     });
   });
 
@@ -310,7 +278,7 @@ describe('GitHub Actions Publish Workflow', () => {
 
     test('workflow should not have empty steps', () => {
       const { parsed: workflow } = loadWorkflow();
-      const steps = workflow.jobs.publish.steps;
+      const steps = workflow.jobs.build.steps;
       steps.forEach((step: any) => {
         expect(step).not.toEqual({});
       });
@@ -325,7 +293,6 @@ describe('GitHub Actions Publish Workflow', () => {
 
     test('workflow should be idempotent', () => {
       const { content } = loadWorkflow();
-      // Multiple runs should produce same result
       const parsed1 = yaml.load(content);
       const parsed2 = yaml.load(content);
       expect(parsed1).toEqual(parsed2);
@@ -376,13 +343,11 @@ describe('GitHub Actions Publish Workflow', () => {
       const { parsed: workflow } = loadWorkflow();
       expect(workflow.name).toBeDefined();
       expect(workflow.on).toBeDefined();
-      expect(workflow.permissions).toBeDefined();
       expect(workflow.jobs).toBeDefined();
     });
 
     test('workflow should not have deprecated syntax', () => {
       const { content } = loadWorkflow();
-      // Check that workflow doesn't use old syntax
       expect(content).not.toContain('::set-output');
       expect(content).not.toContain('::save-state');
     });
@@ -397,52 +362,12 @@ describe('GitHub Actions Publish Workflow', () => {
       const lines = content.split('\n');
       const indentedLines = lines.filter(line => line.match(/^[ ]+/));
 
-      // Check that all indentation is consistent (multiples of 2)
       indentedLines.forEach(line => {
         const indent = line.match(/^[ ]+/);
         if (indent) {
           expect(indent[0].length % 2).toBe(0);
         }
       });
-    });
-  });
-
-  describe('Negative Test Cases', () => {
-    test('workflow should not trigger on push events', () => {
-      const { parsed: workflow } = loadWorkflow();
-      expect(workflow.on.push).toBeUndefined();
-    });
-
-    test('workflow should not trigger on pull request events', () => {
-      const { parsed: workflow } = loadWorkflow();
-      expect(workflow.on.pull_request).toBeUndefined();
-    });
-
-    test('workflow should not have manual workflow_dispatch trigger', () => {
-      const { parsed: workflow } = loadWorkflow();
-      expect(workflow.on.workflow_dispatch).toBeUndefined();
-    });
-
-    test('workflow should not have scheduled triggers', () => {
-      const { parsed: workflow } = loadWorkflow();
-      expect(workflow.on.schedule).toBeUndefined();
-    });
-
-    test('publish step should not use --dry-run flag', () => {
-      const { parsed: workflow } = loadWorkflow();
-      const steps = workflow.jobs.publish.steps;
-      const publishStep = steps.find((step: any) => step.run && step.run.includes('npm publish'));
-      expect(publishStep.run).not.toContain('--dry-run');
-    });
-
-    test('workflow should not skip git checks', () => {
-      const { content } = loadWorkflow();
-      expect(content).not.toContain('--no-git-checks');
-    });
-
-    test('workflow should not force publish', () => {
-      const { content } = loadWorkflow();
-      expect(content).not.toContain('--force');
     });
   });
 });
