@@ -985,7 +985,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         const options: any = {
             name: peripheralDef.name[0],
             baseAddress: parseInteger(peripheralDef.baseAddress[0]),
-            description: peripheralDef.description[0],
+            description: peripheralDef.description ? peripheralDef.description[0] : '',
             totalLength,
         };
 
