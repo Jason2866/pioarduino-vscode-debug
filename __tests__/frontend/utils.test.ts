@@ -98,40 +98,40 @@ describe('extractBits (number)', () => {
 
 describe('extractBitsBigInt', () => {
     test('extracts low byte from 32-bit value', () => {
-        expect(extractBitsBigInt(0xABCDn, 0, 8)).toBe(0xCD);
+        expect(extractBitsBigInt(0xABCDn, 0, 8)).toBe(0xCDn);
     });
 
     test('extracts high byte from 32-bit value', () => {
-        expect(extractBitsBigInt(0xABCDn, 8, 8)).toBe(0xAB);
+        expect(extractBitsBigInt(0xABCDn, 8, 8)).toBe(0xABn);
     });
 
     test('extracts single bit', () => {
-        expect(extractBitsBigInt(0b1010n, 3, 1)).toBe(1);
-        expect(extractBitsBigInt(0b1010n, 2, 1)).toBe(0);
+        expect(extractBitsBigInt(0b1010n, 3, 1)).toBe(1n);
+        expect(extractBitsBigInt(0b1010n, 2, 1)).toBe(0n);
     });
 
     test('extracts upper 32 bits of 64-bit value', () => {
-        expect(extractBitsBigInt(0x1234567890ABCDEFn, 32, 32)).toBe(0x12345678);
+        expect(extractBitsBigInt(0x1234567890ABCDEFn, 32, 32)).toBe(0x12345678n);
     });
 
     test('extracts lower 32 bits of 64-bit value', () => {
-        expect(extractBitsBigInt(0x1234567890ABCDEFn, 0, 32)).toBe(0x90ABCDEF);
+        expect(extractBitsBigInt(0x1234567890ABCDEFn, 0, 32)).toBe(0x90ABCDEFn);
     });
 
     test('extracts field spanning 32-bit boundary', () => {
-        expect(extractBitsBigInt(0xFF00000000n, 28, 12)).toBe(0xFF0);
+        expect(extractBitsBigInt(0xFF00000000n, 28, 12)).toBe(0xFF0n);
     });
 
-    test('extracts full 64-bit value as number (up to safe range)', () => {
-        // 48-bit value fits in Number safely
-        expect(extractBitsBigInt(0xFFFFFFFFFFFFn, 0, 48)).toBe(0xFFFFFFFFFFFF);
+    test('extracts full 64-bit value (preserves precision)', () => {
+        // 64-bit value preserved as bigint
+        expect(extractBitsBigInt(0xFFFFFFFFFFFFFFFFn, 0, 64)).toBe(0xFFFFFFFFFFFFFFFFn);
     });
 
     test('extracts from zero value', () => {
-        expect(extractBitsBigInt(0n, 0, 32)).toBe(0);
+        expect(extractBitsBigInt(0n, 0, 32)).toBe(0n);
     });
 
     test('extracts bits at high offset', () => {
-        expect(extractBitsBigInt(0x8000000000000000n, 63, 1)).toBe(1);
+        expect(extractBitsBigInt(0x8000000000000000n, 63, 1)).toBe(1n);
     });
 });

@@ -44,11 +44,12 @@ export function extractBits(value: number, offset: number, width: number): numbe
 
 /**
  * Extracts a bit field from a bigint value.
+ * Returns bigint to preserve precision for fields >53 bits.
  */
-export function extractBitsBigInt(value: bigint, offset: number, width: number): number {
+export function extractBitsBigInt(value: bigint, offset: number, width: number): bigint {
     const shifted = value >> BigInt(offset);
     const mask = (1n << BigInt(width)) - 1n;
-    return Number(shifted & mask);
+    return shifted & mask;
 }
 
 /**

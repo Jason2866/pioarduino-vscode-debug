@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Function breakpoint handling**: Fixed incorrect array access in `setFunctionBreakPointsRequest`
 - **Null handling**: Proper filtering of failed breakpoint results
 - **Breakpoint ordering**: Preserve 1:1 correspondence with DAP specification (unverified placeholders for failed breakpoints)
+- **BigInt precision loss**: Fixed precision loss for peripheral fields >53 bits
+  - `extractBitsBigInt()` now returns `bigint` instead of `number`
+  - `updateBits()` now accepts `bigint` for full precision
+  - Enumeration values stored as `bigint`
+- **Input cancellation**: Handle undefined input from `showInputBox()` gracefully
 
 ### Technical Details
 
@@ -48,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/backend/adapter.ts`:
   - Fixed `setFunctionBreakPointsRequest` to properly handle breakpoint objects
   - Corrected null handling and object property access
+  - Preserve 1:1 breakpoint ordering with DAP specification
+- `src/frontend/peripheral.ts`:
+  - Added undefined input handling in `performUpdate()`
+  - Changed `updateBits()` to accept `bigint` for precision
+  - Changed `extractBits()` to return `bigint`
+  - Updated enumeration map to store `bigint` values
+- `src/utils.ts`:
+  - Changed `extractBitsBigInt()` to return `bigint` (no Number conversion)
 
 #### New Files
 - `__tests__/mi2/breakpoint-parsing.test.ts` - Comprehensive breakpoint parsing tests
@@ -57,6 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CHANGELOG.md` - This file
 - `CODE_REVIEW_FIX.md` - Simplified logic documentation
 - `NULL_HANDLING_FIX.md` - Null handling fix documentation
+- `ORDERING_FIX.md` - Breakpoint ordering fix documentation
+- `BIGINT_PRECISION_FIX.md` - BigInt precision fix documentation
 
 ### Compatibility
 
@@ -88,13 +103,14 @@ No breaking changes. The extension automatically detects and adapts to the MI ve
 All tests passing:
 - 20 breakpoint parsing tests (MI2/MI3/MI4)
 - 18 error handling, null safety, and ordering tests
-- 60 existing workflow tests
-- Total: 98 tests, 100% pass rate
+- 9 BigInt precision tests (updated for bigint return values)
+- 86 existing tests (workflow, parseBigInt, etc.)
+- Total: 133 tests, 100% pass rate
 
 ```bash
 npm test
-# Test Suites: 3 passed, 3 total
-# Tests:       98 passed, 98 total
+# Test Suites: 5 passed, 5 total
+# Tests:       133 passed, 133 total
 ```
 
 ### Known Issues

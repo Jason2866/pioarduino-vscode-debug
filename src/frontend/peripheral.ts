@@ -391,21 +391,20 @@ export class RegisterNode extends BaseNode {
         this.currentValue = this.resetValue;
     }
 
-    extractBits(offset: number, width: number): number {
+    extractBits(offset: number, width: number): bigint {
         return extractBitsBigInt(this.currentValue, offset, width);
     }
 
-    updateBits(offset: number, width: number, value: number): Promise<boolean> {
+    updateBits(offset: number, width: number, value: bigint): Promise<boolean> {
         return new Promise((resolve, reject) => {
             const maxVal = 1n << BigInt(width);
-            const bigValue = BigInt(value);
-            if (bigValue < 0n || bigValue >= maxVal) {
+            if (value < 0n || value >= maxVal) {
                 return reject(
                     `Value entered is invalid. Maximum value for this field is ${maxVal - 1n} (${hexFormat(maxVal - 1n, 0)})`
                 );
             }
             const mask = (maxVal - 1n) << BigInt(offset);
-            const newValue = (this.currentValue & ~mask) | (bigValue << BigInt(offset));
+            const newValue = (this.currentValue & ~mask) | (value << BigInt(offset));
             this.updateValueInternal(newValue).then(resolve, reject);
         });
     }
@@ -479,6 +478,11 @@ export class RegisterNode extends BaseNode {
             vscode.window
                 .showInputBox({ prompt: 'Enter new value: (prefix hex with 0x, binary with 0b)' })
                 .then((input) => {
+                    // Handle cancellation (undefined input)
+                    if (input === undefined) {
+                        return resolve(false);
+                    }
+                    
                     let value: bigint;
                     try {
                         if (input.match(this.hexRegex)) {
@@ -601,7 +605,7 @@ export class FieldNode extends BaseNode {
     public width: number;
     public accessType: AccessType;
     public enumeration: any;
-    public enumerationMap: { [name: string]: number };
+    public enumerationMap: { [name: string]: bigint };
     public enumerationValues: string[];
 
     constructor(public parent: RegisterNode, options: any) {
@@ -630,7 +634,8 @@ export class FieldNode extends BaseNode {
             for (const key in options.enumeration) {
                 const name = options.enumeration[key].name;
                 this.enumerationValues.push(name);
-                this.enumerationMap[name] = key as any;
+                // Store as BigInt to avoid precision loss for >53 bit values
+                this.enumerationMap[name] = BigInt(key);
             }
         }
 
@@ -670,8 +675,8 @@ export class FieldNode extends BaseNode {
                     break;
             }
 
-            if (this.enumeration && this.enumeration[value]) {
-                enumEntry = this.enumeration[value];
+            if (this.enumeration && this.enumeration[value.toString()]) {
+                enumEntry = this.enumeration[value.toString()];
                 label += ` = ${enumEntry.name} (${formattedValue})`;
             } else {
                 label += ` = ${formattedValue}`;
@@ -694,14 +699,19 @@ export class FieldNode extends BaseNode {
                             return reject('Input not selected');
                         }
                         const value = this.enumerationMap[selected];
-                        this.parent.updateBits(this.offset, this.width, value as any).then(resolve, reject);
+                        this.parent.updateBits(this.offset, this.width, value).then(resolve, reject);
                     }
                 );
             } else {
                 vscode.window
                     .showInputBox({ prompt: 'Enter new value: (prefix hex with 0x, binary with 0b)' })
                     .then((input) => {
-                        const value = parseInteger(input);
+                        // Handle cancellation
+                        if (input === undefined) {
+                            return resolve(false);
+                        }
+                        
+                        const value = parseBigInt(input);
                         if (value === undefined) {
                             return reject('Unable to parse input value.');
                         }
