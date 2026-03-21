@@ -114,27 +114,31 @@ describe('extractBits (number)', () => {
     });
 
     test('throws error for negative value', () => {
-        expect(() => extractBits(-1, 0, 8)).toThrow('value must be a non-negative integer');
+        expect(() => extractBits(-1, 0, 8)).toThrow('value must be a non-negative safe integer');
     });
 
     test('throws error for non-integer value', () => {
-        expect(() => extractBits(1.5, 0, 8)).toThrow('value must be a non-negative integer');
+        expect(() => extractBits(1.5, 0, 8)).toThrow('value must be a non-negative safe integer');
     });
 
     test('throws error for negative offset', () => {
-        expect(() => extractBits(0xFF, -1, 8)).toThrow('offset must be a non-negative integer');
+        expect(() => extractBits(0xFF, -1, 8)).toThrow('offset must be a non-negative safe integer');
     });
 
     test('throws error for non-integer offset', () => {
-        expect(() => extractBits(0xFF, 1.5, 8)).toThrow('offset must be a non-negative integer');
+        expect(() => extractBits(0xFF, 1.5, 8)).toThrow('offset must be a non-negative safe integer');
     });
 
     test('throws error for negative width', () => {
-        expect(() => extractBits(0xFF, 0, -1)).toThrow('width must be a non-negative integer');
+        expect(() => extractBits(0xFF, 0, -1)).toThrow('width must be a non-negative safe integer');
+    });
+
+    test('throws error for zero width', () => {
+        expect(() => extractBits(0xFF, 0, 0)).toThrow('width must be a non-negative safe integer');
     });
 
     test('throws error for non-integer width', () => {
-        expect(() => extractBits(0xFF, 0, 1.5)).toThrow('width must be a non-negative integer');
+        expect(() => extractBits(0xFF, 0, 1.5)).toThrow('width must be a non-negative safe integer');
     });
 });
 
@@ -175,5 +179,43 @@ describe('extractBitsBigInt', () => {
 
     test('extracts bits at high offset', () => {
         expect(extractBitsBigInt(0x8000000000000000n, 63, 1)).toBe(1n);
+    });
+
+    test('throws error for non-bigint value', () => {
+        expect(() => extractBitsBigInt(123 as any, 0, 8)).toThrow('value must be a bigint');
+    });
+
+    test('throws error for negative bigint value', () => {
+        expect(() => extractBitsBigInt(-1n, 0, 8)).toThrow('value must be non-negative');
+    });
+
+    test('throws error for negative offset', () => {
+        expect(() => extractBitsBigInt(0xFFn, -1, 8)).toThrow('offset must be a non-negative safe integer');
+    });
+
+    test('throws error for non-safe-integer offset', () => {
+        expect(() => extractBitsBigInt(0xFFn, 1.5, 8)).toThrow('offset must be a non-negative safe integer');
+    });
+
+    test('throws error for negative width', () => {
+        expect(() => extractBitsBigInt(0xFFn, 0, -1)).toThrow('width must be a non-negative safe integer');
+    });
+
+    test('throws error for zero width', () => {
+        expect(() => extractBitsBigInt(0xFFn, 0, 0)).toThrow('width must be a non-negative safe integer');
+    });
+
+    test('throws error for non-safe-integer width', () => {
+        expect(() => extractBitsBigInt(0xFFn, 0, 1.5)).toThrow('width must be a non-negative safe integer');
+    });
+
+    test('throws error for offset exceeding safe range', () => {
+        const unsafeOffset = Number.MAX_SAFE_INTEGER + 1;
+        expect(() => extractBitsBigInt(0xFFn, unsafeOffset, 8)).toThrow('offset must be a non-negative safe integer');
+    });
+
+    test('throws error for width exceeding safe range', () => {
+        const unsafeWidth = Number.MAX_SAFE_INTEGER + 1;
+        expect(() => extractBitsBigInt(0xFFn, 0, unsafeWidth)).toThrow('width must be a non-negative safe integer');
     });
 });

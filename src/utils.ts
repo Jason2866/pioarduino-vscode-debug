@@ -46,19 +46,19 @@ export function binaryFormat(
 
 /**
  * Extracts a bit field from a value using arithmetic (supports >32-bit values).
- * Note: This function expects non-negative integer inputs. Negative values,
- * non-integer values, or invalid offset/width will produce incorrect results.
+ * Note: This function expects non-negative safe integer inputs. Negative values,
+ * non-safe-integer values, or invalid offset/width will produce incorrect results.
  * For values requiring >53-bit precision, use extractBitsBigInt instead.
  */
 export function extractBits(value: number, offset: number, width: number): number {
-    if (value < 0 || !Number.isInteger(value)) {
-        throw new Error('extractBits: value must be a non-negative integer');
+    if (value < 0 || !Number.isSafeInteger(value)) {
+        throw new Error('extractBits: value must be a non-negative safe integer');
     }
-    if (offset < 0 || !Number.isInteger(offset)) {
-        throw new Error('extractBits: offset must be a non-negative integer');
+    if (offset < 0 || !Number.isSafeInteger(offset)) {
+        throw new Error('extractBits: offset must be a non-negative safe integer');
     }
-    if (width < 0 || !Number.isInteger(width)) {
-        throw new Error('extractBits: width must be a non-negative integer');
+    if (width <= 0 || !Number.isSafeInteger(width)) {
+        throw new Error('extractBits: width must be a non-negative safe integer');
     }
     return Math.floor(value / Math.pow(2, offset)) % Math.pow(2, width);
 }
@@ -77,7 +77,7 @@ export function extractBitsBigInt(value: bigint, offset: number, width: number):
     if (!Number.isSafeInteger(offset) || offset < 0) {
         throw new Error('extractBitsBigInt: offset must be a non-negative safe integer');
     }
-    if (!Number.isSafeInteger(width) || width < 0) {
+    if (!Number.isSafeInteger(width) || width <= 0) {
         throw new Error('extractBitsBigInt: width must be a non-negative safe integer');
     }
     const shifted = value >> BigInt(offset);

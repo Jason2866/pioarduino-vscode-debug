@@ -51,6 +51,7 @@ export class BaseNode {
     public expanded: boolean = false;
     public format: NumberFormat = NumberFormat.Auto;
     public description: string;
+    public accessType?: AccessType;
 
     constructor(public recordType: RecordType) {}
 
@@ -169,6 +170,7 @@ export class PeripheralNode extends BaseNode {
         this.groupName = options.groupName || '';
         this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : 0n;
         this.size = options.size || 32;
+        this.accessType = options.accessType;
     }
 
     getTreeNode(): TreeNode {
@@ -282,7 +284,7 @@ export class ClusterNode extends BaseNode {
         this.name = options.name;
         this.description = options.description;
         this.offset = options.addressOffset;
-        this.accessType = options.accessType || AccessType.ReadWrite;
+        this.accessType = options.accessType ?? parent.accessType ?? AccessType.ReadWrite;
         this.size = options.size || parent.size;
         this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : parent.resetValue;
         this.parent.addChild(this);
