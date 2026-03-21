@@ -36,19 +36,6 @@ export function binaryFormat(
 }
 
 /**
- * Creates a bitmask covering the specified bit range.
- * Note: Only exact for masks that fit within Number.MAX_SAFE_INTEGER (53 bits).
- */
-export function createMask(offset: number, width: number): number {
-    let mask = 0;
-    const end = offset + width - 1;
-    for (let i = offset; i <= end; i++) {
-        mask += Math.pow(2, i);
-    }
-    return mask;
-}
-
-/**
  * Extracts a bit field from a value using arithmetic (supports >32-bit values).
  */
 export function extractBits(value: number, offset: number, width: number): number {
