@@ -506,7 +506,7 @@ export class RegisterNode extends BaseNode {
 
         for (let i = 0; i < byteCount; i++) {
             const byte = newValue & 0xff;
-            newValue >>>= 8;
+            newValue = Math.floor(newValue / 256);
             let hexByte = byte.toString(16);
             if (hexByte.length === 1) {
                 hexByte = '0' + hexByte;
@@ -545,9 +545,12 @@ export class RegisterNode extends BaseNode {
             case 4:
                 this.currentValue = buffer.readUInt32LE(0);
                 break;
+            case 8:
+                this.currentValue = buffer.readUInt32LE(0) + buffer.readUInt32LE(4) * 0x100000000;
+                break;
             default:
                 vscode.window.showErrorMessage(
-                    `Register ${this.name} has invalid size: ${this.size}. Should be 8, 16 or 32.`
+                    `Register ${this.name} has invalid size: ${this.size}. Should be 8, 16, 32 or 64.`
                 );
         }
 
