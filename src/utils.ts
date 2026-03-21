@@ -24,19 +24,18 @@ export function binaryFormat(
 /**
  * Formats a number as a binary string, with optional nibble grouping.
  */
-    let result = (value >>> 0).toString(2);
+    let result = Math.trunc(value).toString(2);
     while (result.length < padding) {
         result = '0' + result;
     }
 
     if (groupByNibble) {
-        const extraZeros = 4 - (result.length % 4);
+        const extraZeros = (4 - (result.length % 4)) % 4;
         for (let i = 0; i < extraZeros; i++) {
             result = '0' + result;
         }
         const groups = result.match(/[01]{4}/g);
         result = groups.join(' ');
-        result = result.substring(extraZeros);
     }
 
     return includePrefix ? '0b' + result : result;
@@ -48,11 +47,12 @@ export function binaryFormat(
 export function createMask(offset: number, width: number): number {
 /**
  * Creates a bitmask covering the specified bit range.
+ * Note: Only exact for masks that fit within Number.MAX_SAFE_INTEGER (53 bits).
  */
     let mask = 0;
     const end = offset + width - 1;
     for (let i = offset; i <= end; i++) {
-        mask = (mask | (1 << i)) >>> 0;
+        mask += Math.pow(2, i);
     }
     return mask;
 }
@@ -62,9 +62,9 @@ export function createMask(offset: number, width: number): number {
  */
 export function extractBits(value: number, offset: number, width: number): number {
 /**
- * Extracts a bit field from a value.
+ * Extracts a bit field from a value using arithmetic (supports >32-bit values).
  */
-    return ((value & createMask(offset, width)) >>> offset) >>> 0;
+    return Math.floor(value / Math.pow(2, offset)) % Math.pow(2, width);
 }
 
 /**

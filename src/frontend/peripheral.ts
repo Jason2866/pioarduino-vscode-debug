@@ -5,7 +5,6 @@ import { NumberFormat } from '../common';
 import {
     hexFormat,
     binaryFormat,
-    createMask,
     extractBits,
 } from '../utils';
 
@@ -398,14 +397,15 @@ export class RegisterNode extends BaseNode {
     updateBits(offset: number, width: number, value: number): Promise<boolean> {
         return new Promise((resolve, reject) => {
             const maxVal = Math.pow(2, width);
-            if (value > maxVal) {
+            if (!Number.isInteger(value) || value < 0 || value >= maxVal) {
                 return reject(
                     `Value entered is invalid. Maximum value for this field is ${maxVal - 1} (${hexFormat(maxVal - 1, 0)})`
                 );
             }
-            const mask = createMask(offset, width);
-            const shiftedValue = value << offset;
-            const newValue = (this.currentValue & ~mask) | shiftedValue;
+            const base = Math.pow(2, offset);
+            const range = Math.pow(2, width);
+            const oldField = Math.floor(this.currentValue / base) % range;
+            const newValue = this.currentValue - oldField * base + value * base;
             this.updateValueInternal(newValue).then(resolve, reject);
         });
     }
@@ -505,7 +505,7 @@ export class RegisterNode extends BaseNode {
         const byteCount = this.size / 8;
 
         for (let i = 0; i < byteCount; i++) {
-            const byte = newValue & 0xff;
+            const byte = newValue % 256;
             newValue = Math.floor(newValue / 256);
             let hexByte = byte.toString(16);
             if (hexByte.length === 1) {
