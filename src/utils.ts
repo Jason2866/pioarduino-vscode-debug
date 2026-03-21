@@ -52,6 +52,25 @@ export function extractBitsBigInt(value: bigint, offset: number, width: number):
 }
 
 /**
+ * Parses a string as a bigint, supporting hex (0x), binary (0b), decimal, and hash-binary (#) prefixes.
+ */
+export function parseBigInt(value: string): bigint | undefined {
+    if (/^0b([01]+)$/i.test(value)) {
+        return BigInt('0b' + value.substring(2));
+    }
+    if (/^0x([0-9a-f]+)$/i.test(value)) {
+        return BigInt('0x' + value.substring(2));
+    }
+    if (/^[0-9]+$/i.test(value)) {
+        return BigInt(value);
+    }
+    if (/^#[0-1]+$/i.test(value)) {
+        return BigInt('0b' + value.substring(1));
+    }
+    return undefined;
+}
+
+/**
  * Parses a URL query string into a key-value map.
  */
 export function parseQuery(queryString: string): { [key: string]: string } {
