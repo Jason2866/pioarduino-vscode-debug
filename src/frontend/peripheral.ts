@@ -820,6 +820,10 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                         const name = enumVal.name[0];
                         const desc = enumVal.description ? enumVal.description[0] : name;
                         const val = parseBigInt(enumVal.value[0].toLowerCase());
+                        if (val === undefined) {
+                            console.warn(`Failed to parse enumeration value for ${name}: ${enumVal.value[0]}`);
+                            return;
+                        }
                         enumeration[val.toString()] = new EnumerationValue(name, desc, val);
                     }
                 });
@@ -883,7 +887,10 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 options.size = parseInteger(reg.size[0]);
             }
             if (reg.resetValue) {
-                options.resetValue = parseBigInt(reg.resetValue[0]);
+                const parsed = parseBigInt(reg.resetValue[0]);
+                if (parsed !== undefined) {
+                    options.resetValue = parsed;
+                }
             }
 
             if (reg.dim) {
@@ -950,7 +957,10 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 options.size = parseInteger(cluster.size[0]);
             }
             if (cluster.resetValue) {
-                options.resetValue = parseBigInt(cluster.resetValue[0]);
+                const parsed = parseBigInt(cluster.resetValue[0]);
+                if (parsed !== undefined) {
+                    options.resetValue = parsed;
+                }
             }
 
             if (cluster.dim) {
@@ -1027,7 +1037,10 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             options.size = parseInteger(peripheralDef.size[0]);
         }
         if (peripheralDef.resetValue) {
-            options.resetValue = parseBigInt(peripheralDef.resetValue[0]);
+            const parsed = parseBigInt(peripheralDef.resetValue[0]);
+            if (parsed !== undefined) {
+                options.resetValue = parsed;
+            }
         }
         if (peripheralDef.groupName) {
             options.groupName = peripheralDef.groupName[0];
@@ -1065,7 +1078,10 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                         };
 
                         if (result.device.resetValue) {
-                            defaults.resetValue = parseBigInt(result.device.resetValue[0]);
+                            const parsed = parseBigInt(result.device.resetValue[0]);
+                            if (parsed !== undefined) {
+                                defaults.resetValue = parsed;
+                            }
                         }
                         if (result.device.size) {
                             defaults.size = parseInteger(result.device.size[0]);

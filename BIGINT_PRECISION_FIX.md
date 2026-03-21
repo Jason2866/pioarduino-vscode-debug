@@ -170,7 +170,7 @@ test('extracts full 64-bit value (preserves precision)', () => {
 
 ## Files Modified
 
-1. **src/frontend/peripheral.ts**
+1. **`src/frontend/peripheral.ts`**
    - Added undefined check in `performUpdate()`
    - Changed `updateBits()` to accept `bigint`
    - Changed `extractBits()` to return `bigint`
@@ -179,32 +179,32 @@ test('extracts full 64-bit value (preserves precision)', () => {
    - Updated `performUpdate()` to use `parseBigInt()`
    - Updated enumeration lookup to use `.toString()`
 
-2. **src/utils.ts**
+2. **`src/utils.ts`**
    - Changed `extractBitsBigInt()` to return `bigint`
    - Removed `Number()` conversion
 
-3. **__tests__/frontend/utils.test.ts**
+3. **`__tests__/frontend/utils.test.ts`**
    - Updated 9 tests to expect `bigint` values
    - Updated test description for 64-bit test
 
 ## Verification
 
 ### Build Status
-```
+```text
 ✅ TypeScript compilation: Success
 ✅ Webpack build: Success
 ✅ No errors or warnings
 ```
 
 ### Test Status
-```
+```text
 ✅ Test Suites: 5 passed, 5 total
 ✅ Tests: 133 passed, 133 total
 ✅ 100% pass rate
 ```
 
 ### Diagnostics
-```
+```text
 ✅ src/frontend/peripheral.ts: No diagnostics
 ✅ src/utils.ts: No diagnostics
 ```

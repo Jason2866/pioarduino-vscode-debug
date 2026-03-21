@@ -59,6 +59,18 @@ export function extractBits(value: number, offset: number, width: number): numbe
  * Returns bigint to preserve precision for fields >53 bits.
  */
 export function extractBitsBigInt(value: bigint, offset: number, width: number): bigint {
+    if (typeof value !== 'bigint') {
+        throw new Error('extractBitsBigInt: value must be a bigint');
+    }
+    if (value < 0n) {
+        throw new Error('extractBitsBigInt: value must be non-negative');
+    }
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+        throw new Error('extractBitsBigInt: offset must be a non-negative safe integer');
+    }
+    if (!Number.isSafeInteger(width) || width < 0) {
+        throw new Error('extractBitsBigInt: width must be a non-negative safe integer');
+    }
     const shifted = value >> BigInt(offset);
     const mask = (1n << BigInt(width)) - 1n;
     return shifted & mask;
@@ -88,7 +100,7 @@ export function parseBigInt(value: string): bigint | undefined {
  */
 export function parseQuery(queryString: string): { [key: string]: string } {
     const params: { [key: string]: string } = {};
-    const pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
+    const pairs = (queryString[0] === '?' ? queryString.substring(1) : queryString).split('&');
     for (const pair of pairs) {
         const parts = pair.split('=');
         params[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1] || '');
