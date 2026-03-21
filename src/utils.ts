@@ -2,7 +2,7 @@
  * Formats a number as a zero-padded hexadecimal string.
  */
 export function hexFormat(value: number | bigint, padding: number = 8, includePrefix: boolean = true): string {
-    let result = typeof value === 'bigint' ? value.toString(16) : value.toString(16);
+    let result = value.toString(16);
     while (result.length < padding) {
         result = '0' + result;
     }

@@ -398,7 +398,6 @@ export class RegisterNode extends BaseNode {
         this.maxValue = 1n << BigInt(this.size);
         this.binaryRegex = new RegExp(`^0b[01]{1,${this.size}}$`, 'i');
         this.hexRegex = new RegExp(`^0x[0-9a-f]{1,${this.hexLength}}$`, 'i');
-        this.parent;
         this.parent.addChild(this);
     }
 
@@ -419,7 +418,6 @@ export class RegisterNode extends BaseNode {
                     `Value entered is invalid. Maximum value for this field is ${maxVal - 1n} (${hexFormat(maxVal - 1n, 0)})`
                 );
             }
-            const base = 1n << BigInt(offset);
             const mask = (maxVal - 1n) << BigInt(offset);
             const newValue = (this.currentValue & ~mask) | (bigValue << BigInt(offset));
             this.updateValueInternal(newValue).then(resolve, reject);
@@ -501,7 +499,7 @@ export class RegisterNode extends BaseNode {
                             value = BigInt('0x' + input.substr(2));
                         } else if (input.match(this.binaryRegex)) {
                             value = BigInt('0b' + input.substr(2));
-                        } else if (input.match(/^[0-9]+/)) {
+                        } else if (input.match(/^[0-9]+$/)) {
                             value = BigInt(input);
                             if (value >= this.maxValue) {
                                 return reject(
