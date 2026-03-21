@@ -939,7 +939,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 options.size = parseInteger(cluster.size[0]);
             }
             if (cluster.resetValue) {
-                options.resetValue = parseBigInt(cluster.resetValue);
+                options.resetValue = parseBigInt(cluster.resetValue[0]);
             }
 
             if (cluster.dim) {
