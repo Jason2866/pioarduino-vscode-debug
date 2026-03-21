@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `CHANGELOG.md` - Version history
 
 ### Changed
+- **Deprecated API**: Replaced `substr()` with `substring()` for forward compatibility
+- **Type Consistency**: All `resetValue` fields now use `bigint` (PeripheralNode, ClusterNode, RegisterNode)
 - **Breakpoint Number Extraction**: Now handles both single and multi-location breakpoint formats
 - **Error Handling**: Added NaN check for breakpoint number parsing
 - **Package Version**: Bumped to 1.1.0
@@ -41,7 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `extractBitsBigInt()` now returns `bigint` instead of `number`
   - `updateBits()` now accepts `bigint` for full precision
   - Enumeration values stored as `bigint`
+  - All `resetValue` fields now use `bigint` for consistency
 - **Input cancellation**: Handle undefined input from `showInputBox()` gracefully
+- **Null safety**: Added null-safe fallback for `match()` in `binaryFormat()`
 
 ### Technical Details
 
@@ -59,8 +63,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Changed `updateBits()` to accept `bigint` for precision
   - Changed `extractBits()` to return `bigint`
   - Updated enumeration map to store `bigint` values
+  - Replaced deprecated `substr()` with `substring()`
+  - Changed all `resetValue` fields to `bigint` for type consistency
 - `src/utils.ts`:
   - Changed `extractBitsBigInt()` to return `bigint` (no Number conversion)
+  - Added null-safe fallback for `match()` in `binaryFormat()`
 
 #### New Files
 - `__tests__/mi2/breakpoint-parsing.test.ts` - Comprehensive breakpoint parsing tests
@@ -72,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `NULL_HANDLING_FIX.md` - Null handling fix documentation
 - `ORDERING_FIX.md` - Breakpoint ordering fix documentation
 - `BIGINT_PRECISION_FIX.md` - BigInt precision fix documentation
+- `ALL_FIXES_COMPLETE.md` - Complete summary of all fixes
 
 ### Compatibility
 

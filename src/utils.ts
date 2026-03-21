@@ -28,7 +28,7 @@ export function binaryFormat(
         for (let i = 0; i < extraZeros; i++) {
             result = '0' + result;
         }
-        const groups = result.match(/[01]{4}/g);
+        const groups = result.match(/[01]{4}/g) || [];
         result = groups.join(' ');
     }
 

@@ -31,7 +31,7 @@ All code review findings have been successfully addressed across multiple iterat
 
 ## Test Results
 
-```
+```text
 Test Suites: 5 passed, 5 total
 Tests:       133 passed, 133 total
 Snapshots:   0 total
@@ -46,7 +46,7 @@ Time:        ~0.85s
 
 ## Build Results
 
-```
+```text
 ✅ TypeScript compilation: Success
 ✅ Webpack build: Success
 ✅ Extension size: 47.9 KiB

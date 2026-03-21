@@ -155,7 +155,7 @@ export class PeripheralNode extends BaseNode {
     public baseAddress: number;
     public totalLength: number;
     public groupName: string;
-    public resetValue: number;
+    public resetValue: bigint;
     public size: number;
     public children: BaseNode[] = [];
     public currentValue: number[];
@@ -167,7 +167,7 @@ export class PeripheralNode extends BaseNode {
         this.baseAddress = options.baseAddress;
         this.totalLength = options.totalLength;
         this.groupName = options.groupName || '';
-        this.resetValue = options.resetValue || 0;
+        this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : 0n;
         this.size = options.size || 32;
     }
 
@@ -274,7 +274,7 @@ export class ClusterNode extends BaseNode {
     public offset: number;
     public accessType: AccessType;
     public size: number;
-    public resetValue: number;
+    public resetValue: bigint;
     public children: BaseNode[] = [];
 
     constructor(public parent: any, options: any) {
@@ -284,7 +284,7 @@ export class ClusterNode extends BaseNode {
         this.offset = options.addressOffset;
         this.accessType = options.accessType || AccessType.ReadWrite;
         this.size = options.size || parent.size;
-        this.resetValue = options.resetValue || parent.resetValue;
+        this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : parent.resetValue;
         this.parent.addChild(this);
     }
 
@@ -378,7 +378,7 @@ export class RegisterNode extends BaseNode {
         this.offset = options.addressOffset;
         this.accessType = options.accessType || parent.accessType;
         this.size = options.size || parent.size;
-        this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : BigInt(parent.resetValue ?? 0);
+        this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : (parent.resetValue ?? 0n);
         this.currentValue = this.resetValue;
         this.hexLength = Math.ceil(this.size / 4);
         this.maxValue = 1n << BigInt(this.size);
@@ -486,9 +486,9 @@ export class RegisterNode extends BaseNode {
                     let value: bigint;
                     try {
                         if (input.match(this.hexRegex)) {
-                            value = BigInt('0x' + input.substr(2));
+                            value = BigInt('0x' + input.substring(2));
                         } else if (input.match(this.binaryRegex)) {
-                            value = BigInt('0b' + input.substr(2));
+                            value = BigInt('0b' + input.substring(2));
                         } else if (input.match(/^[0-9]+$/)) {
                             value = BigInt(input);
                             if (value >= this.maxValue) {
