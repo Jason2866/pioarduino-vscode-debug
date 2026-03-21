@@ -1,11 +1,8 @@
 /**
  * Formats a number as a zero-padded hexadecimal string.
  */
-export function hexFormat(value: number, padding: number = 8, includePrefix: boolean = true): string {
-/**
- * Formats a number as a zero-padded hexadecimal string.
- */
-    let result = value.toString(16);
+export function hexFormat(value: number | bigint, padding: number = 8, includePrefix: boolean = true): string {
+    let result = typeof value === 'bigint' ? value.toString(16) : value.toString(16);
     while (result.length < padding) {
         result = '0' + result;
     }
@@ -16,15 +13,12 @@ export function hexFormat(value: number, padding: number = 8, includePrefix: boo
  * Formats a number as a binary string, with optional nibble grouping.
  */
 export function binaryFormat(
-    value: number,
+    value: number | bigint,
     padding: number = 0,
     includePrefix: boolean = true,
     groupByNibble: boolean = false
 ): string {
-/**
- * Formats a number as a binary string, with optional nibble grouping.
- */
-    let result = Math.trunc(value).toString(2);
+    let result = typeof value === 'bigint' ? value.toString(2) : Math.trunc(value).toString(2);
     while (result.length < padding) {
         result = '0' + result;
     }
@@ -43,12 +37,9 @@ export function binaryFormat(
 
 /**
  * Creates a bitmask covering the specified bit range.
- */
-export function createMask(offset: number, width: number): number {
-/**
- * Creates a bitmask covering the specified bit range.
  * Note: Only exact for masks that fit within Number.MAX_SAFE_INTEGER (53 bits).
  */
+export function createMask(offset: number, width: number): number {
     let mask = 0;
     const end = offset + width - 1;
     for (let i = offset; i <= end; i++) {
@@ -58,22 +49,25 @@ export function createMask(offset: number, width: number): number {
 }
 
 /**
- * Extracts a bit field from a value.
- */
-export function extractBits(value: number, offset: number, width: number): number {
-/**
  * Extracts a bit field from a value using arithmetic (supports >32-bit values).
  */
+export function extractBits(value: number, offset: number, width: number): number {
     return Math.floor(value / Math.pow(2, offset)) % Math.pow(2, width);
+}
+
+/**
+ * Extracts a bit field from a bigint value.
+ */
+export function extractBitsBigInt(value: bigint, offset: number, width: number): number {
+    const shifted = value >> BigInt(offset);
+    const mask = (1n << BigInt(width)) - 1n;
+    return Number(shifted & mask);
 }
 
 /**
  * Parses a URL query string into a key-value map.
  */
 export function parseQuery(queryString: string): { [key: string]: string } {
-/**
- * Parses a URL query string into a key-value map.
- */
     const params: { [key: string]: string } = {};
     const pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
     for (const pair of pairs) {
@@ -87,9 +81,6 @@ export function parseQuery(queryString: string): { [key: string]: string } {
  * Encodes a function name and source file into a disassembly:// URI.
  */
 export function encodeDisassembly(name: string, file: string): string {
-/**
- * Encodes a function name and source file into a disassembly:// URI.
- */
     let uri = 'disassembly:///';
     if (file) {
         uri += `${file}:`;

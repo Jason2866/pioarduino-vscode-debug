@@ -5,7 +5,7 @@ import { NumberFormat } from '../common';
 import {
     hexFormat,
     binaryFormat,
-    extractBits,
+    extractBitsBigInt,
 } from '../utils';
 
 export enum RecordType {
@@ -361,10 +361,10 @@ export class RegisterNode extends BaseNode {
     public offset: number;
     public accessType: AccessType;
     public size: number;
-    public resetValue: number;
-    public currentValue: number;
+    public resetValue: bigint;
+    public currentValue: bigint;
     public hexLength: number;
-    public maxValue: number;
+    public maxValue: bigint;
     public binaryRegex: RegExp;
     public hexRegex: RegExp;
     public children: BaseNode[] = [];
@@ -376,10 +376,10 @@ export class RegisterNode extends BaseNode {
         this.offset = options.addressOffset;
         this.accessType = options.accessType || parent.accessType;
         this.size = options.size || parent.size;
-        this.resetValue = options.resetValue !== undefined ? options.resetValue : parent.resetValue;
+        this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : BigInt(parent.resetValue || 0);
         this.currentValue = this.resetValue;
         this.hexLength = Math.ceil(this.size / 4);
-        this.maxValue = Math.pow(2, this.size);
+        this.maxValue = 1n << BigInt(this.size);
         this.binaryRegex = new RegExp(`^0b[01]{1,${this.size}}$`, 'i');
         this.hexRegex = new RegExp(`^0x[0-9a-f]{1,${this.hexLength}}$`, 'i');
         this.parent;
@@ -391,21 +391,21 @@ export class RegisterNode extends BaseNode {
     }
 
     extractBits(offset: number, width: number): number {
-        return extractBits(this.currentValue, offset, width);
+        return extractBitsBigInt(this.currentValue, offset, width);
     }
 
     updateBits(offset: number, width: number, value: number): Promise<boolean> {
         return new Promise((resolve, reject) => {
-            const maxVal = Math.pow(2, width);
-            if (!Number.isInteger(value) || value < 0 || value >= maxVal) {
+            const maxVal = 1n << BigInt(width);
+            const bigValue = BigInt(value);
+            if (bigValue < 0n || bigValue >= maxVal) {
                 return reject(
-                    `Value entered is invalid. Maximum value for this field is ${maxVal - 1} (${hexFormat(maxVal - 1, 0)})`
+                    `Value entered is invalid. Maximum value for this field is ${maxVal - 1n} (${hexFormat(maxVal - 1n, 0)})`
                 );
             }
-            const base = Math.pow(2, offset);
-            const range = Math.pow(2, width);
-            const oldField = Math.floor(this.currentValue / base) % range;
-            const newValue = this.currentValue - oldField * base + value * base;
+            const base = 1n << BigInt(offset);
+            const mask = (maxVal - 1n) << BigInt(offset);
+            const newValue = (this.currentValue & ~mask) | (bigValue << BigInt(offset));
             this.updateValueInternal(newValue).then(resolve, reject);
         });
     }
@@ -479,19 +479,23 @@ export class RegisterNode extends BaseNode {
             vscode.window
                 .showInputBox({ prompt: 'Enter new value: (prefix hex with 0x, binary with 0b)' })
                 .then((input) => {
-                    let value: number;
-                    if (input.match(this.hexRegex)) {
-                        value = parseInt(input.substr(2), 16);
-                    } else if (input.match(this.binaryRegex)) {
-                        value = parseInt(input.substr(2), 2);
-                    } else if (input.match(/^[0-9]+/)) {
-                        value = parseInt(input, 10);
-                        if (value >= this.maxValue) {
-                            return reject(
-                                `Value entered (${value}) is greater than the maximum value of ${this.maxValue}`
-                            );
+                    let value: bigint;
+                    try {
+                        if (input.match(this.hexRegex)) {
+                            value = BigInt('0x' + input.substr(2));
+                        } else if (input.match(this.binaryRegex)) {
+                            value = BigInt('0b' + input.substr(2));
+                        } else if (input.match(/^[0-9]+/)) {
+                            value = BigInt(input);
+                            if (value >= this.maxValue) {
+                                return reject(
+                                    `Value entered (${value}) is greater than the maximum value of ${this.maxValue - 1n}`
+                                );
+                            }
+                        } else {
+                            return reject('Value entered is not a valid format.');
                         }
-                    } else {
+                    } catch {
                         return reject('Value entered is not a valid format.');
                     }
                     this.updateValueInternal(value).then(resolve, reject);
@@ -499,14 +503,15 @@ export class RegisterNode extends BaseNode {
         });
     }
 
-    private updateValueInternal(newValue: number): Promise<boolean> {
+    private updateValueInternal(newValue: bigint): Promise<boolean> {
         const address = this.parent.getAddress(this.offset);
         const bytes: string[] = [];
         const byteCount = this.size / 8;
 
+        let remaining = newValue;
         for (let i = 0; i < byteCount; i++) {
-            const byte = newValue % 256;
-            newValue = Math.floor(newValue / 256);
+            const byte = Number(remaining & 0xFFn);
+            remaining >>= 8n;
             let hexByte = byte.toString(16);
             if (hexByte.length === 1) {
                 hexByte = '0' + hexByte;
@@ -537,16 +542,16 @@ export class RegisterNode extends BaseNode {
 
         switch (byteCount) {
             case 1:
-                this.currentValue = buffer.readUInt8(0);
+                this.currentValue = BigInt(buffer.readUInt8(0));
                 break;
             case 2:
-                this.currentValue = buffer.readUInt16LE(0);
+                this.currentValue = BigInt(buffer.readUInt16LE(0));
                 break;
             case 4:
-                this.currentValue = buffer.readUInt32LE(0);
+                this.currentValue = BigInt(buffer.readUInt32LE(0));
                 break;
             case 8:
-                this.currentValue = buffer.readUInt32LE(0) + buffer.readUInt32LE(4) * 0x100000000;
+                this.currentValue = buffer.readBigUInt64LE(0);
                 break;
             default:
                 vscode.window.showErrorMessage(
