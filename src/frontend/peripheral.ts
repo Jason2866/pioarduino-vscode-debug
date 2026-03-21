@@ -98,6 +98,22 @@ function parseInteger(value: string): number | undefined {
     return undefined;
 }
 
+function parseBigInt(value: string): bigint | undefined {
+    if (/^0b([01]+)$/i.test(value)) {
+        return BigInt('0b' + value.substring(2));
+    }
+    if (/^0x([0-9a-f]+)$/i.test(value)) {
+        return BigInt('0x' + value.substring(2));
+    }
+    if (/^[0-9]+/i.test(value)) {
+        return BigInt(value);
+    }
+    if (/^#[0-1]+/i.test(value)) {
+        return BigInt('0b' + value.substring(1));
+    }
+    return undefined;
+}
+
 function parseDimIndex(dimIndex: string, count: number): string[] {
     if (dimIndex.indexOf(',') !== -1) {
         const items = dimIndex.split(',').map((s) => s.trim());
@@ -376,7 +392,7 @@ export class RegisterNode extends BaseNode {
         this.offset = options.addressOffset;
         this.accessType = options.accessType || parent.accessType;
         this.size = options.size || parent.size;
-        this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : BigInt(parent.resetValue || 0);
+        this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : BigInt(parent.resetValue ?? 0);
         this.currentValue = this.resetValue;
         this.hexLength = Math.ceil(this.size / 4);
         this.maxValue = 1n << BigInt(this.size);
@@ -872,7 +888,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 options.size = parseInteger(reg.size[0]);
             }
             if (reg.resetValue) {
-                options.resetValue = parseInteger(reg.resetValue[0]);
+                options.resetValue = parseBigInt(reg.resetValue[0]);
             }
 
             if (reg.dim) {
@@ -939,7 +955,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 options.size = parseInteger(cluster.size[0]);
             }
             if (cluster.resetValue) {
-                options.resetValue = parseInteger(cluster.resetValue);
+                options.resetValue = parseBigInt(cluster.resetValue);
             }
 
             if (cluster.dim) {
@@ -1004,7 +1020,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             options.size = parseInteger(peripheralDef.size[0]);
         }
         if (peripheralDef.resetValue) {
-            options.resetValue = parseInteger(peripheralDef.resetValue[0]);
+            options.resetValue = parseBigInt(peripheralDef.resetValue[0]);
         }
         if (peripheralDef.groupName) {
             options.groupName = peripheralDef.groupName[0];
@@ -1038,11 +1054,11 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                         const defaults: any = {
                             accessType: AccessType.ReadWrite,
                             size: 32,
-                            resetValue: 0,
+                            resetValue: 0n,
                         };
 
                         if (result.device.resetValue) {
-                            defaults.resetValue = parseInteger(result.device.resetValue[0]);
+                            defaults.resetValue = parseBigInt(result.device.resetValue[0]);
                         }
                         if (result.device.size) {
                             defaults.size = parseInteger(result.device.size[0]);
