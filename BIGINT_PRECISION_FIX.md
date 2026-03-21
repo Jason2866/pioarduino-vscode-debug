@@ -8,7 +8,7 @@ Three precision-related issues were found in the peripheral and register handlin
 
 **Issue:** `vscode.window.showInputBox()` returns `undefined` when the user cancels, but the code attempted to call `.match()` on undefined, causing a runtime error.
 
-**Location:** `src/frontend/peripheral.ts` - `PeripheralRegisterNode.performUpdate()`
+**Location:** `src/frontend/peripheral.ts` - `RegisterNode.performUpdate()`
 
 **Fix:**
 ```typescript
@@ -101,7 +101,7 @@ export function extractBitsBigInt(value: bigint, offset: number, width: number):
 
 **Cascading Changes:**
 
-### 1. Updated PeripheralRegisterNode.extractBits()
+### 1. Updated RegisterNode.extractBits()
 ```typescript
 // Before
 extractBits(offset: number, width: number): number

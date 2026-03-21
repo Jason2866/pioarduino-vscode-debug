@@ -94,6 +94,30 @@ describe('extractBits (number)', () => {
     test('extracts zero field', () => {
         expect(extractBits(0xFF00, 0, 8)).toBe(0);
     });
+
+    test('throws error for negative value', () => {
+        expect(() => extractBits(-1, 0, 8)).toThrow('value must be a non-negative integer');
+    });
+
+    test('throws error for non-integer value', () => {
+        expect(() => extractBits(1.5, 0, 8)).toThrow('value must be a non-negative integer');
+    });
+
+    test('throws error for negative offset', () => {
+        expect(() => extractBits(0xFF, -1, 8)).toThrow('offset must be a non-negative integer');
+    });
+
+    test('throws error for non-integer offset', () => {
+        expect(() => extractBits(0xFF, 1.5, 8)).toThrow('offset must be a non-negative integer');
+    });
+
+    test('throws error for negative width', () => {
+        expect(() => extractBits(0xFF, 0, -1)).toThrow('width must be a non-negative integer');
+    });
+
+    test('throws error for non-integer width', () => {
+        expect(() => extractBits(0xFF, 0, 1.5)).toThrow('width must be a non-negative integer');
+    });
 });
 
 describe('extractBitsBigInt', () => {
