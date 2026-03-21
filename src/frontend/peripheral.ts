@@ -141,7 +141,7 @@ class EnumerationValue {
     constructor(
         public name: string,
         public description: string,
-        public value: number
+        public value: bigint
     ) {}
 }
 
@@ -632,10 +632,11 @@ export class FieldNode extends BaseNode {
             this.enumerationMap = {};
             this.enumerationValues = [];
             for (const key in options.enumeration) {
-                const name = options.enumeration[key].name;
+                const entry = options.enumeration[key];
+                const name = entry.name;
                 this.enumerationValues.push(name);
-                // Store as BigInt to avoid precision loss for >53 bit values
-                this.enumerationMap[name] = BigInt(key);
+                // Store the bigint value directly from the EnumerationValue
+                this.enumerationMap[name] = entry.value;
             }
         }
 
@@ -696,7 +697,7 @@ export class FieldNode extends BaseNode {
                 vscode.window.showQuickPick(this.enumerationValues).then(
                     (selected) => {
                         if (selected === undefined) {
-                            return reject('Input not selected');
+                            return resolve(false);
                         }
                         const value = this.enumerationMap[selected];
                         this.parent.updateBits(this.offset, this.width, value).then(resolve, reject);
@@ -818,8 +819,8 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                     if (enumVal.value && enumVal.value.length > 0) {
                         const name = enumVal.name[0];
                         const desc = enumVal.description ? enumVal.description[0] : name;
-                        const val = parseInteger(enumVal.value[0].toLowerCase());
-                        enumeration[val] = new EnumerationValue(name, desc, val);
+                        const val = parseBigInt(enumVal.value[0].toLowerCase());
+                        enumeration[val.toString()] = new EnumerationValue(name, desc, val);
                     }
                 });
             }
@@ -1007,6 +1008,18 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             totalLength,
         };
 
+        // Apply device-level defaults first
+        if (defaults.size !== undefined) {
+            options.size = defaults.size;
+        }
+        if (defaults.resetValue !== undefined) {
+            options.resetValue = defaults.resetValue;
+        }
+        if (defaults.accessType !== undefined) {
+            options.accessType = defaults.accessType;
+        }
+
+        // Override with peripheral-specific values
         if (peripheralDef.access) {
             options.accessType = ACCESS_MAP[peripheralDef.access[0]];
         }
