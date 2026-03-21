@@ -71,6 +71,24 @@ describe('binaryFormat', () => {
     test('formats bigint zero', () => {
         expect(binaryFormat(0n, 8)).toBe('0b00000000');
     });
+
+    test('handles negative numbers (documents current behavior)', () => {
+        // Negative numbers produce negative binary strings via toString(2)
+        // Padding is applied before the negative sign
+        const result = binaryFormat(-1, 8);
+        expect(result).toBe('0b000000-1');
+    });
+
+    test('handles values wider than width (documents overflow behavior)', () => {
+        // Values exceeding width are not truncated - full binary representation shown
+        const result = binaryFormat(0x1FF, 8); // 9 bits in 8-bit width
+        expect(result).toBe('0b111111111'); // Shows all 9 bits, no padding needed
+    });
+
+    test('handles negative bigint (documents current behavior)', () => {
+        const result = binaryFormat(-5n, 8);
+        expect(result).toBe('0b0000-101');
+    });
 });
 
 describe('extractBits (number)', () => {

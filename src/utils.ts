@@ -11,6 +11,15 @@ export function hexFormat(value: number | bigint, padding: number = 8, includePr
 
 /**
  * Formats a number as a binary string, with optional nibble grouping.
+ * 
+ * Note: This function accepts negative values and will produce negative binary strings
+ * (e.g., -1 becomes "-1" in binary). For unsigned/register display, ensure input is non-negative.
+ * Values wider than the padding will show all bits (no truncation).
+ * 
+ * @param value - Number or bigint to format
+ * @param padding - Minimum width (pads with leading zeros)
+ * @param includePrefix - Whether to include "0b" prefix
+ * @param groupByNibble - Whether to group bits by 4 (nibbles)
  */
 export function binaryFormat(
     value: number | bigint,

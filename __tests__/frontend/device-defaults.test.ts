@@ -6,6 +6,15 @@
 
 import { parseBigInt } from '../../src/utils';
 
+// Access type mapping (mirrors production ACCESS_MAP)
+const ACCESS_MAP: { [key: string]: number } = {
+    'read-only': 1,
+    'write-only': 2,
+    'read-write': 0,
+    'writeOnce': 3,
+    'read-writeOnce': 4,
+};
+
 // Mock the peripheral parsing logic to test defaults inheritance
 function parsePeripheralOptions(peripheralDef: any, defaults: any): any {
     const options: any = {
@@ -27,13 +36,43 @@ function parsePeripheralOptions(peripheralDef: any, defaults: any): any {
 
     // Override with peripheral-specific values
     if (peripheralDef.access !== undefined) {
-        options.accessType = peripheralDef.access;
+        // Mirror production: map access string to numeric value
+        options.accessType = ACCESS_MAP[peripheralDef.access[0]] ?? peripheralDef.access;
     }
     if (peripheralDef.size !== undefined) {
         options.size = peripheralDef.size;
     }
     if (peripheralDef.resetValue !== undefined) {
         options.resetValue = peripheralDef.resetValue;
+    }
+
+    return options;
+}
+
+// Helper for register options construction (mirrors peripheral pattern)
+function parseRegisterOptions(registerDef: any, peripheralOptions: any): any {
+    const options: any = {
+        name: registerDef.name,
+        addressOffset: registerDef.addressOffset,
+    };
+
+    // Inherit from peripheral, then override with register-specific values
+    if (registerDef.size !== undefined) {
+        options.size = registerDef.size;
+    } else if (peripheralOptions.size !== undefined) {
+        options.size = peripheralOptions.size;
+    }
+
+    if (registerDef.resetValue !== undefined) {
+        options.resetValue = registerDef.resetValue;
+    } else if (peripheralOptions.resetValue !== undefined) {
+        options.resetValue = peripheralOptions.resetValue;
+    }
+
+    if (registerDef.accessType !== undefined) {
+        options.accessType = registerDef.accessType;
+    } else if (peripheralOptions.accessType !== undefined) {
+        options.accessType = peripheralOptions.accessType;
     }
 
     return options;
@@ -211,24 +250,7 @@ describe('Register-Level Defaults Inheritance', () => {
             // size omitted - should inherit from peripheral
         };
 
-        // Simulate register options construction
-        const registerOptions: any = {
-            name: registerDef.name,
-            addressOffset: registerDef.addressOffset,
-        };
-
-        // Apply peripheral defaults
-        if (registerDef.size !== undefined) {
-            registerOptions.size = registerDef.size;
-        } else if (peripheralOptions.size !== undefined) {
-            registerOptions.size = peripheralOptions.size;
-        }
-
-        if (registerDef.resetValue !== undefined) {
-            registerOptions.resetValue = registerDef.resetValue;
-        } else if (peripheralOptions.resetValue !== undefined) {
-            registerOptions.resetValue = peripheralOptions.resetValue;
-        }
+        const registerOptions = parseRegisterOptions(registerDef, peripheralOptions);
 
         expect(registerOptions.size).toBe(64);
         expect(registerOptions.resetValue).toBe(0xFFFFFFFFFFFFFFFFn);
@@ -246,16 +268,7 @@ describe('Register-Level Defaults Inheritance', () => {
             size: 32, // Override
         };
 
-        const registerOptions: any = {
-            name: registerDef.name,
-            addressOffset: registerDef.addressOffset,
-        };
-
-        if (registerDef.size !== undefined) {
-            registerOptions.size = registerDef.size;
-        } else if (peripheralOptions.size !== undefined) {
-            registerOptions.size = peripheralOptions.size;
-        }
+        const registerOptions = parseRegisterOptions(registerDef, peripheralOptions);
 
         expect(registerOptions.size).toBe(32);
     });
