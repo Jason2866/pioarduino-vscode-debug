@@ -33,8 +33,8 @@ Three precision-related issues were found in the peripheral and register handlin
 
 **Changes:**
 
-### 1. Created `parseBigInt()` Function
-Already existed in `src/utils.ts` and was imported, so removed duplicate local implementation.
+### 1. Reused shared `parseBigInt()` helper
+Imported `parseBigInt()` from `src/utils.ts` and removed the duplicate local implementation.
 
 ### 2. Updated `updateBits` Signature
 ```typescript
