@@ -1,10 +1,7 @@
 /**
  * Formats a number as a zero-padded hexadecimal string.
  */
-export function hexFormat(value: number, padding: number = 8, includePrefix: boolean = true): string {
-/**
- * Formats a number as a zero-padded hexadecimal string.
- */
+export function hexFormat(value: number | bigint, padding: number = 8, includePrefix: boolean = true): string {
     let result = value.toString(16);
     while (result.length < padding) {
         result = '0' + result;
@@ -14,68 +11,106 @@ export function hexFormat(value: number, padding: number = 8, includePrefix: boo
 
 /**
  * Formats a number as a binary string, with optional nibble grouping.
+ * 
+ * Note: This function accepts negative values and will produce negative binary strings
+ * (e.g., -1 becomes "-1" in binary). For unsigned/register display, ensure input is non-negative.
+ * Values wider than the padding will show all bits (no truncation).
+ * 
+ * @param value - Number or bigint to format
+ * @param padding - Minimum width (pads with leading zeros)
+ * @param includePrefix - Whether to include "0b" prefix
+ * @param groupByNibble - Whether to group bits by 4 (nibbles)
  */
 export function binaryFormat(
-    value: number,
+    value: number | bigint,
     padding: number = 0,
     includePrefix: boolean = true,
     groupByNibble: boolean = false
 ): string {
-/**
- * Formats a number as a binary string, with optional nibble grouping.
- */
-    let result = (value >>> 0).toString(2);
+    let result = typeof value === 'bigint' ? value.toString(2) : Math.trunc(value).toString(2);
     while (result.length < padding) {
         result = '0' + result;
     }
 
     if (groupByNibble) {
-        const extraZeros = 4 - (result.length % 4);
+        const extraZeros = (4 - (result.length % 4)) % 4;
         for (let i = 0; i < extraZeros; i++) {
             result = '0' + result;
         }
-        const groups = result.match(/[01]{4}/g);
+        const groups = result.match(/[01]{4}/g) || [];
         result = groups.join(' ');
-        result = result.substring(extraZeros);
     }
 
     return includePrefix ? '0b' + result : result;
 }
 
 /**
- * Creates a bitmask covering the specified bit range.
+ * Extracts a bit field from a value using arithmetic (supports >32-bit values).
+ * Note: This function expects non-negative safe integer inputs. Negative values,
+ * non-safe-integer values, or invalid offset/width will produce incorrect results.
+ * For values requiring >53-bit precision, use extractBitsBigInt instead.
  */
-export function createMask(offset: number, width: number): number {
-/**
- * Creates a bitmask covering the specified bit range.
- */
-    let mask = 0;
-    const end = offset + width - 1;
-    for (let i = offset; i <= end; i++) {
-        mask = (mask | (1 << i)) >>> 0;
+export function extractBits(value: number, offset: number, width: number): number {
+    if (value < 0 || !Number.isSafeInteger(value)) {
+        throw new Error('extractBits: value must be a non-negative safe integer');
     }
-    return mask;
+    if (offset < 0 || !Number.isSafeInteger(offset)) {
+        throw new Error('extractBits: offset must be a non-negative safe integer');
+    }
+    if (width <= 0 || !Number.isSafeInteger(width)) {
+        throw new Error('extractBits: width must be a non-negative safe integer');
+    }
+    return Math.floor(value / Math.pow(2, offset)) % Math.pow(2, width);
 }
 
 /**
- * Extracts a bit field from a value.
+ * Extracts a bit field from a bigint value.
+ * Returns bigint to preserve precision for fields >53 bits.
  */
-export function extractBits(value: number, offset: number, width: number): number {
+export function extractBitsBigInt(value: bigint, offset: number, width: number): bigint {
+    if (typeof value !== 'bigint') {
+        throw new Error('extractBitsBigInt: value must be a bigint');
+    }
+    if (value < 0n) {
+        throw new Error('extractBitsBigInt: value must be non-negative');
+    }
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+        throw new Error('extractBitsBigInt: offset must be a non-negative safe integer');
+    }
+    if (!Number.isSafeInteger(width) || width <= 0) {
+        throw new Error('extractBitsBigInt: width must be a non-negative safe integer');
+    }
+    const shifted = value >> BigInt(offset);
+    const mask = (1n << BigInt(width)) - 1n;
+    return shifted & mask;
+}
+
 /**
- * Extracts a bit field from a value.
+ * Parses a string as a bigint, supporting hex (0x), binary (0b), decimal, and hash-binary (#) prefixes.
  */
-    return ((value & createMask(offset, width)) >>> offset) >>> 0;
+export function parseBigInt(value: string): bigint | undefined {
+    value = value.trim();
+    if (/^0b([01]+)$/i.test(value)) {
+        return BigInt('0b' + value.substring(2));
+    }
+    if (/^0x([0-9a-f]+)$/i.test(value)) {
+        return BigInt('0x' + value.substring(2));
+    }
+    if (/^[0-9]+$/i.test(value)) {
+        return BigInt(value);
+    }
+    if (/^#[0-1]+$/i.test(value)) {
+        return BigInt('0b' + value.substring(1));
+    }
+    return undefined;
 }
 
 /**
  * Parses a URL query string into a key-value map.
  */
 export function parseQuery(queryString: string): { [key: string]: string } {
-/**
- * Parses a URL query string into a key-value map.
- */
     const params: { [key: string]: string } = {};
-    const pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
+    const pairs = (queryString[0] === '?' ? queryString.substring(1) : queryString).split('&');
     for (const pair of pairs) {
         const parts = pair.split('=');
         params[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1] || '');
@@ -87,9 +122,6 @@ export function parseQuery(queryString: string): { [key: string]: string } {
  * Encodes a function name and source file into a disassembly:// URI.
  */
 export function encodeDisassembly(name: string, file: string): string {
-/**
- * Encodes a function name and source file into a disassembly:// URI.
- */
     let uri = 'disassembly:///';
     if (file) {
         uri += `${file}:`;

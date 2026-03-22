@@ -5,8 +5,8 @@ import { NumberFormat } from '../common';
 import {
     hexFormat,
     binaryFormat,
-    createMask,
-    extractBits,
+    extractBitsBigInt,
+    parseBigInt,
 } from '../utils';
 
 export enum RecordType {
@@ -51,6 +51,7 @@ export class BaseNode {
     public expanded: boolean = false;
     public format: NumberFormat = NumberFormat.Auto;
     public description: string;
+    public accessType?: AccessType;
 
     constructor(public recordType: RecordType) {}
 
@@ -90,14 +91,15 @@ function parseInteger(value: string): number | undefined {
     if (/^0x([0-9a-f]+)$/i.test(value)) {
         return parseInt(value.substring(2), 16);
     }
-    if (/^[0-9]+/i.test(value)) {
+    if (/^[0-9]+$/i.test(value)) {
         return parseInt(value, 10);
     }
-    if (/^#[0-1]+/i.test(value)) {
+    if (/^#[0-1]+$/i.test(value)) {
         return parseInt(value.substring(1), 2);
     }
     return undefined;
 }
+
 
 function parseDimIndex(dimIndex: string, count: number): string[] {
     if (dimIndex.indexOf(',') !== -1) {
@@ -140,7 +142,7 @@ class EnumerationValue {
     constructor(
         public name: string,
         public description: string,
-        public value: number
+        public value: bigint
     ) {}
 }
 
@@ -154,7 +156,7 @@ export class PeripheralNode extends BaseNode {
     public baseAddress: number;
     public totalLength: number;
     public groupName: string;
-    public resetValue: number;
+    public resetValue: bigint;
     public size: number;
     public children: BaseNode[] = [];
     public currentValue: number[];
@@ -166,8 +168,9 @@ export class PeripheralNode extends BaseNode {
         this.baseAddress = options.baseAddress;
         this.totalLength = options.totalLength;
         this.groupName = options.groupName || '';
-        this.resetValue = options.resetValue || 0;
+        this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : 0n;
         this.size = options.size || 32;
+        this.accessType = options.accessType;
     }
 
     getTreeNode(): TreeNode {
@@ -273,7 +276,7 @@ export class ClusterNode extends BaseNode {
     public offset: number;
     public accessType: AccessType;
     public size: number;
-    public resetValue: number;
+    public resetValue: bigint;
     public children: BaseNode[] = [];
 
     constructor(public parent: any, options: any) {
@@ -281,9 +284,9 @@ export class ClusterNode extends BaseNode {
         this.name = options.name;
         this.description = options.description;
         this.offset = options.addressOffset;
-        this.accessType = options.accessType || AccessType.ReadWrite;
+        this.accessType = options.accessType ?? parent.accessType ?? AccessType.ReadWrite;
         this.size = options.size || parent.size;
-        this.resetValue = options.resetValue || parent.resetValue;
+        this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : parent.resetValue;
         this.parent.addChild(this);
     }
 
@@ -362,10 +365,10 @@ export class RegisterNode extends BaseNode {
     public offset: number;
     public accessType: AccessType;
     public size: number;
-    public resetValue: number;
-    public currentValue: number;
+    public resetValue: bigint;
+    public currentValue: bigint;
     public hexLength: number;
-    public maxValue: number;
+    public maxValue: bigint;
     public binaryRegex: RegExp;
     public hexRegex: RegExp;
     public children: BaseNode[] = [];
@@ -377,13 +380,12 @@ export class RegisterNode extends BaseNode {
         this.offset = options.addressOffset;
         this.accessType = options.accessType || parent.accessType;
         this.size = options.size || parent.size;
-        this.resetValue = options.resetValue !== undefined ? options.resetValue : parent.resetValue;
+        this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : (parent.resetValue ?? 0n);
         this.currentValue = this.resetValue;
         this.hexLength = Math.ceil(this.size / 4);
-        this.maxValue = Math.pow(2, this.size);
+        this.maxValue = 1n << BigInt(this.size);
         this.binaryRegex = new RegExp(`^0b[01]{1,${this.size}}$`, 'i');
         this.hexRegex = new RegExp(`^0x[0-9a-f]{1,${this.hexLength}}$`, 'i');
-        this.parent;
         this.parent.addChild(this);
     }
 
@@ -391,21 +393,20 @@ export class RegisterNode extends BaseNode {
         this.currentValue = this.resetValue;
     }
 
-    extractBits(offset: number, width: number): number {
-        return extractBits(this.currentValue, offset, width);
+    extractBits(offset: number, width: number): bigint {
+        return extractBitsBigInt(this.currentValue, offset, width);
     }
 
-    updateBits(offset: number, width: number, value: number): Promise<boolean> {
+    updateBits(offset: number, width: number, value: bigint): Promise<boolean> {
         return new Promise((resolve, reject) => {
-            const maxVal = Math.pow(2, width);
-            if (value > maxVal) {
+            const maxVal = 1n << BigInt(width);
+            if (value < 0n || value >= maxVal) {
                 return reject(
-                    `Value entered is invalid. Maximum value for this field is ${maxVal - 1} (${hexFormat(maxVal - 1, 0)})`
+                    `Value entered is invalid. Maximum value for this field is ${maxVal - 1n} (${hexFormat(maxVal - 1n, 0)})`
                 );
             }
-            const mask = createMask(offset, width);
-            const shiftedValue = value << offset;
-            const newValue = (this.currentValue & ~mask) | shiftedValue;
+            const mask = (maxVal - 1n) << BigInt(offset);
+            const newValue = (this.currentValue & ~mask) | (value << BigInt(offset));
             this.updateValueInternal(newValue).then(resolve, reject);
         });
     }
@@ -479,19 +480,28 @@ export class RegisterNode extends BaseNode {
             vscode.window
                 .showInputBox({ prompt: 'Enter new value: (prefix hex with 0x, binary with 0b)' })
                 .then((input) => {
-                    let value: number;
-                    if (input.match(this.hexRegex)) {
-                        value = parseInt(input.substr(2), 16);
-                    } else if (input.match(this.binaryRegex)) {
-                        value = parseInt(input.substr(2), 2);
-                    } else if (input.match(/^[0-9]+/)) {
-                        value = parseInt(input, 10);
-                        if (value >= this.maxValue) {
-                            return reject(
-                                `Value entered (${value}) is greater than the maximum value of ${this.maxValue}`
-                            );
+                    // Handle cancellation (undefined input)
+                    if (input === undefined) {
+                        return resolve(false);
+                    }
+                    
+                    let value: bigint;
+                    try {
+                        if (input.match(this.hexRegex)) {
+                            value = BigInt('0x' + input.substring(2));
+                        } else if (input.match(this.binaryRegex)) {
+                            value = BigInt('0b' + input.substring(2));
+                        } else if (input.match(/^[0-9]+$/)) {
+                            value = BigInt(input);
+                            if (value >= this.maxValue) {
+                                return reject(
+                                    `Value entered (${value}) is greater than the maximum value of ${this.maxValue - 1n}`
+                                );
+                            }
+                        } else {
+                            return reject('Value entered is not a valid format.');
                         }
-                    } else {
+                    } catch {
                         return reject('Value entered is not a valid format.');
                     }
                     this.updateValueInternal(value).then(resolve, reject);
@@ -499,14 +509,15 @@ export class RegisterNode extends BaseNode {
         });
     }
 
-    private updateValueInternal(newValue: number): Promise<boolean> {
+    private updateValueInternal(newValue: bigint): Promise<boolean> {
         const address = this.parent.getAddress(this.offset);
         const bytes: string[] = [];
         const byteCount = this.size / 8;
 
+        let remaining = newValue;
         for (let i = 0; i < byteCount; i++) {
-            const byte = newValue & 0xff;
-            newValue >>>= 8;
+            const byte = Number(remaining & 0xFFn);
+            remaining >>= 8n;
             let hexByte = byte.toString(16);
             if (hexByte.length === 1) {
                 hexByte = '0' + hexByte;
@@ -533,21 +544,27 @@ export class RegisterNode extends BaseNode {
     update(): Promise<boolean> {
         const byteCount = this.size / 8;
         const bytes = this.parent.getBytes(this.offset, byteCount);
+        if (bytes.length < byteCount) {
+            return Promise.resolve(false);
+        }
         const buffer = Buffer.from(bytes);
 
         switch (byteCount) {
             case 1:
-                this.currentValue = buffer.readUInt8(0);
+                this.currentValue = BigInt(buffer.readUInt8(0));
                 break;
             case 2:
-                this.currentValue = buffer.readUInt16LE(0);
+                this.currentValue = BigInt(buffer.readUInt16LE(0));
                 break;
             case 4:
-                this.currentValue = buffer.readUInt32LE(0);
+                this.currentValue = BigInt(buffer.readUInt32LE(0));
+                break;
+            case 8:
+                this.currentValue = buffer.readBigUInt64LE(0);
                 break;
             default:
                 vscode.window.showErrorMessage(
-                    `Register ${this.name} has invalid size: ${this.size}. Should be 8, 16 or 32.`
+                    `Register ${this.name} has invalid size: ${this.size}. Should be 8, 16, 32 or 64.`
                 );
         }
 
@@ -593,7 +610,7 @@ export class FieldNode extends BaseNode {
     public width: number;
     public accessType: AccessType;
     public enumeration: any;
-    public enumerationMap: { [name: string]: number };
+    public enumerationMap: { [name: string]: bigint };
     public enumerationValues: string[];
 
     constructor(public parent: RegisterNode, options: any) {
@@ -620,9 +637,11 @@ export class FieldNode extends BaseNode {
             this.enumerationMap = {};
             this.enumerationValues = [];
             for (const key in options.enumeration) {
-                const name = options.enumeration[key].name;
+                const entry = options.enumeration[key];
+                const name = entry.name;
                 this.enumerationValues.push(name);
-                this.enumerationMap[name] = key as any;
+                // Store the bigint value directly from the EnumerationValue
+                this.enumerationMap[name] = entry.value;
             }
         }
 
@@ -662,8 +681,8 @@ export class FieldNode extends BaseNode {
                     break;
             }
 
-            if (this.enumeration && this.enumeration[value]) {
-                enumEntry = this.enumeration[value];
+            if (this.enumeration && this.enumeration[value.toString()]) {
+                enumEntry = this.enumeration[value.toString()];
                 label += ` = ${enumEntry.name} (${formattedValue})`;
             } else {
                 label += ` = ${formattedValue}`;
@@ -683,17 +702,22 @@ export class FieldNode extends BaseNode {
                 vscode.window.showQuickPick(this.enumerationValues).then(
                     (selected) => {
                         if (selected === undefined) {
-                            return reject('Input not selected');
+                            return resolve(false);
                         }
                         const value = this.enumerationMap[selected];
-                        this.parent.updateBits(this.offset, this.width, value as any).then(resolve, reject);
+                        this.parent.updateBits(this.offset, this.width, value).then(resolve, reject);
                     }
                 );
             } else {
                 vscode.window
                     .showInputBox({ prompt: 'Enter new value: (prefix hex with 0x, binary with 0b)' })
                     .then((input) => {
-                        const value = parseInteger(input);
+                        // Handle cancellation
+                        if (input === undefined) {
+                            return resolve(false);
+                        }
+                        
+                        const value = parseBigInt(input);
                         if (value === undefined) {
                             return reject('Unable to parse input value.');
                         }
@@ -800,10 +824,17 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                     if (enumVal.value && enumVal.value.length > 0) {
                         const name = enumVal.name[0];
                         const desc = enumVal.description ? enumVal.description[0] : name;
-                        const val = parseInteger(enumVal.value[0].toLowerCase());
-                        enumeration[val] = new EnumerationValue(name, desc, val);
+                        const val = parseBigInt(enumVal.value[0].toLowerCase());
+                        if (val === undefined) {
+                            console.warn(`Failed to parse enumeration value for ${name}: ${enumVal.value[0]}`);
+                            return;
+                        }
+                        enumeration[val.toString()] = new EnumerationValue(name, desc, val);
                     }
                 });
+                if (Object.keys(enumeration).length === 0) {
+                    enumeration = null;
+                }
             }
 
             const fieldOptions: any = {
@@ -864,7 +895,10 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 options.size = parseInteger(reg.size[0]);
             }
             if (reg.resetValue) {
-                options.resetValue = parseInteger(reg.resetValue[0]);
+                const parsed = parseBigInt(reg.resetValue[0]);
+                if (parsed !== undefined) {
+                    options.resetValue = parsed;
+                }
             }
 
             if (reg.dim) {
@@ -931,7 +965,10 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 options.size = parseInteger(cluster.size[0]);
             }
             if (cluster.resetValue) {
-                options.resetValue = parseInteger(cluster.resetValue);
+                const parsed = parseBigInt(cluster.resetValue[0]);
+                if (parsed !== undefined) {
+                    options.resetValue = parsed;
+                }
             }
 
             if (cluster.dim) {
@@ -989,6 +1026,18 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             totalLength,
         };
 
+        // Apply device-level defaults first
+        if (defaults.size !== undefined) {
+            options.size = defaults.size;
+        }
+        if (defaults.resetValue !== undefined) {
+            options.resetValue = defaults.resetValue;
+        }
+        if (defaults.accessType !== undefined) {
+            options.accessType = defaults.accessType;
+        }
+
+        // Override with peripheral-specific values
         if (peripheralDef.access) {
             options.accessType = ACCESS_MAP[peripheralDef.access[0]];
         }
@@ -996,7 +1045,10 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             options.size = parseInteger(peripheralDef.size[0]);
         }
         if (peripheralDef.resetValue) {
-            options.resetValue = parseInteger(peripheralDef.resetValue[0]);
+            const parsed = parseBigInt(peripheralDef.resetValue[0]);
+            if (parsed !== undefined) {
+                options.resetValue = parsed;
+            }
         }
         if (peripheralDef.groupName) {
             options.groupName = peripheralDef.groupName[0];
@@ -1030,11 +1082,14 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                         const defaults: any = {
                             accessType: AccessType.ReadWrite,
                             size: 32,
-                            resetValue: 0,
+                            resetValue: 0n,
                         };
 
                         if (result.device.resetValue) {
-                            defaults.resetValue = parseInteger(result.device.resetValue[0]);
+                            const parsed = parseBigInt(result.device.resetValue[0]);
+                            if (parsed !== undefined) {
+                                defaults.resetValue = parsed;
+                            }
                         }
                         if (result.device.size) {
                             defaults.size = parseInteger(result.device.size[0]);
