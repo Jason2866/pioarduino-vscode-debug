@@ -544,6 +544,9 @@ export class RegisterNode extends BaseNode {
     update(): Promise<boolean> {
         const byteCount = this.size / 8;
         const bytes = this.parent.getBytes(this.offset, byteCount);
+        if (bytes.length < byteCount) {
+            return Promise.resolve(false);
+        }
         const buffer = Buffer.from(bytes);
 
         switch (byteCount) {
@@ -829,6 +832,9 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                         enumeration[val.toString()] = new EnumerationValue(name, desc, val);
                     }
                 });
+                if (Object.keys(enumeration).length === 0) {
+                    enumeration = null;
+                }
             }
 
             const fieldOptions: any = {
