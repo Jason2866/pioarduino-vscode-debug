@@ -91,10 +91,10 @@ function parseInteger(value: string): number | undefined {
     if (/^0x([0-9a-f]+)$/i.test(value)) {
         return parseInt(value.substring(2), 16);
     }
-    if (/^[0-9]+/i.test(value)) {
+    if (/^[0-9]+$/i.test(value)) {
         return parseInt(value, 10);
     }
-    if (/^#[0-1]+/i.test(value)) {
+    if (/^#[0-1]+$/i.test(value)) {
         return parseInt(value.substring(1), 2);
     }
     return undefined;
