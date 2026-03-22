@@ -89,6 +89,7 @@ export function extractBitsBigInt(value: bigint, offset: number, width: number):
  * Parses a string as a bigint, supporting hex (0x), binary (0b), decimal, and hash-binary (#) prefixes.
  */
 export function parseBigInt(value: string): bigint | undefined {
+    value = value.trim();
     if (/^0b([01]+)$/i.test(value)) {
         return BigInt('0b' + value.substring(2));
     }
