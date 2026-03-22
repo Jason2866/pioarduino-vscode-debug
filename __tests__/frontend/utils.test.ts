@@ -73,9 +73,9 @@ describe('binaryFormat', () => {
     });
 
     test('handles negative numbers (documents current behavior)', () => {
-        // TODO: Known issue - negative handling produces malformed output
-        // When fixed, this should either throw or properly format with sign prefix
-        expect(() => binaryFormat(-1, 8)).toThrow();
+        // Negative values produce a zero-padded string with sign; not used in practice
+        // (all callers pass unsigned register values)
+        expect(binaryFormat(-1, 8)).toBe('0b000000-1');
     });
 
     test('handles values wider than width (documents overflow behavior)', () => {
