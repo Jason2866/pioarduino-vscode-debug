@@ -73,10 +73,9 @@ describe('binaryFormat', () => {
     });
 
     test('handles negative numbers (documents current behavior)', () => {
-        // Negative numbers produce negative binary strings via toString(2)
-        // Padding is applied before the negative sign
-        const result = binaryFormat(-1, 8);
-        expect(result).toBe('0b000000-1');
+        // TODO: Known issue - negative handling produces malformed output
+        // When fixed, this should either throw or properly format with sign prefix
+        expect(() => binaryFormat(-1, 8)).toThrow();
     });
 
     test('handles values wider than width (documents overflow behavior)', () => {
