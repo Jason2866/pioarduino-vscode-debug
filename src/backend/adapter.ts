@@ -520,12 +520,22 @@ export class GDBDebugSession extends DebugSession {
         this.sendEvent(new CustomStopEvent('step', this.currentThreadId));
     }
 
-    /** Emits stopped events for user pause. */
+    /** Emits stopped events for signals (SIGINT = pause, others = exception). */
     private handlePause(info: any): void {
+        const signalName = info.record('signal-name');
+        const threadId = parseInt(info.record('thread-id') || this.currentThreadId, 10);
         this.stopped = true;
-        this.stoppedReason = 'user request';
-        this.sendEvent(new StoppedEvent('user request', this.currentThreadId, true));
-        this.sendEvent(new CustomStopEvent('user request', this.currentThreadId));
+
+        if (signalName === 'SIGINT' || signalName === 'SIGSTOP') {
+            this.stoppedReason = 'user request';
+            this.sendEvent(new StoppedEvent('user request', threadId, true));
+            this.sendEvent(new CustomStopEvent('user request', threadId));
+        } else {
+            const signalText = info.record('signal-meaning') || signalName || 'signal';
+            this.stoppedReason = 'exception';
+            this.sendEvent(new StoppedEvent('exception', threadId, true, signalText));
+            this.sendEvent(new CustomStopEvent('exception', threadId));
+        }
     }
 
     /** Emits thread started. */
