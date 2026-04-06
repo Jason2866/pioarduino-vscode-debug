@@ -486,12 +486,12 @@ export class MI2 extends EventEmitter {
                         if (lineStr) {
                             line = parseInt(lineStr, 10);
                         }
-                        const from = parseInt(MINode.valueOf(entry, '@frame.from'), 10);
+                        const fromStr = MINode.valueOf(entry, '@frame.from');
                         frames.push({
                             address,
                             fileName: file,
                             file: fullname,
-                            function: func || from,
+                            function: func || fromStr,
                             level,
                             line,
                         });
