@@ -172,6 +172,12 @@ export class MI2 extends EventEmitter {
                                     this.emit('step-out-end', parsed);
                                 } else if (reason === 'signal-received') {
                                     this.emit('signal-stop', parsed);
+                                } else if (
+                                    reason === 'watchpoint-trigger' ||
+                                    reason === 'read-watchpoint-trigger' ||
+                                    reason === 'access-watchpoint-trigger'
+                                ) {
+                                    this.emit('watchpoint', parsed);
                                 } else if (reason === 'exited-normally') {
                                     this.emit('exited-normally', parsed);
                                 } else if (reason === 'exited') {
@@ -357,8 +363,8 @@ export class MI2 extends EventEmitter {
                             "'. Only supports 'X' for breaking once after X times or '>X' for ignoring the first X breaks"
                         );
                         args += '-t ';
-                    } else if (parseInt(count) !== 0) {
-                        args += '-t -i ' + parseInt(count) + ' ';
+                    } else if (parseInt(count, 10) !== 0) {
+                        args += '-t -i ' + parseInt(count, 10) + ' ';
                     }
                 }
             }
@@ -374,13 +380,13 @@ export class MI2 extends EventEmitter {
                     if (result.resultRecords.resultClass === 'done') {
                         // MI3/MI4: Handle both single breakpoint and multi-location breakpoints
                         // In MI3+, multi-location breakpoints still have a parent bkpt object with number
-                        let bkptNumber = parseInt(result.result('bkpt.number'));
+                        let bkptNumber = parseInt(result.result('bkpt.number'), 10);
                         
                         // Fallback: if parent number is invalid, try first location (MI3+ multi-location)
                         if (isNaN(bkptNumber)) {
                             const locations = result.result('bkpt.locations');
                             if (locations && locations.length > 0) {
-                                bkptNumber = parseInt(MINode.valueOf(locations[0], 'number'));
+                                bkptNumber = parseInt(MINode.valueOf(locations[0], 'number'), 10);
                             }
                         }
                         
@@ -446,7 +452,7 @@ export class MI2 extends EventEmitter {
                     let line = 0;
                     const lineStr = MINode.valueOf(frame, 'line');
                     if (lineStr) {
-                        line = parseInt(lineStr);
+                        line = parseInt(lineStr, 10);
                     }
                     resolve({
                         address,
@@ -478,14 +484,14 @@ export class MI2 extends EventEmitter {
                         let line = 0;
                         const lineStr = MINode.valueOf(entry, '@frame.line');
                         if (lineStr) {
-                            line = parseInt(lineStr);
+                            line = parseInt(lineStr, 10);
                         }
-                        const from = parseInt(MINode.valueOf(entry, '@frame.from'));
+                        const fromStr = MINode.valueOf(entry, '@frame.from');
                         frames.push({
                             address,
                             fileName: file,
                             file: fullname,
-                            function: func || from,
+                            function: func || fromStr,
                             level,
                             line,
                         });

@@ -56,6 +56,8 @@ export class GDBDebugSession extends DebugSession {
     private stopped: boolean = false;
     private stoppedReason: string = '';
     private breakpointMap: Map<string, any[]> = new Map();
+    private frameIdMap: Map<number, { threadId: number; frameLevel: number }> = new Map();
+    private nextFrameId: number = 256;
     private fileExistsCache: Map<string, boolean> = new Map();
     private miDebugger: MI2;
     private args: any;
@@ -78,6 +80,7 @@ export class GDBDebugSession extends DebugSession {
         this.miDebugger.on('stopped', this.stopEvent.bind(this));
         this.miDebugger.on('msg', this.handleMsg.bind(this));
         this.miDebugger.on('breakpoint', this.handleBreakpoint.bind(this));
+        this.miDebugger.on('watchpoint', this.handleWatchpoint.bind(this));
         this.miDebugger.on('step-end', this.handleBreak.bind(this));
         this.miDebugger.on('step-out-end', this.handleBreak.bind(this));
         this.miDebugger.on('signal-stop', this.handlePause.bind(this));
@@ -123,6 +126,8 @@ export class GDBDebugSession extends DebugSession {
         this.debugReady = false;
         this.stopped = false;
         this.breakpointMap = new Map();
+        this.frameIdMap = new Map();
+        this.nextFrameId = 256;
         this.fileExistsCache = new Map();
 
         const pioArgs = ['debug'];
@@ -310,7 +315,7 @@ export class GDBDebugSession extends DebugSession {
         const instructions = result.result('asm_insns').map((entry: any) => ({
             address: MINode.valueOf(entry, 'address'),
             functionName: MINode.valueOf(entry, 'func-name'),
-            offset: parseInt(MINode.valueOf(entry, 'offset')),
+            offset: parseInt(MINode.valueOf(entry, 'offset'), 10),
             instruction: MINode.valueOf(entry, 'inst'),
             opcodes: MINode.valueOf(entry, 'opcodes'),
         }));
@@ -329,7 +334,7 @@ export class GDBDebugSession extends DebugSession {
         return result.result('asm_insns').map((entry: any) => ({
             address: MINode.valueOf(entry, 'address'),
             functionName: MINode.valueOf(entry, 'func-name'),
-            offset: parseInt(MINode.valueOf(entry, 'offset')),
+            offset: parseInt(MINode.valueOf(entry, 'offset'), 10),
             instruction: MINode.valueOf(entry, 'inst'),
             opcodes: MINode.valueOf(entry, 'opcodes'),
         }));
@@ -370,7 +375,7 @@ export class GDBDebugSession extends DebugSession {
 
     /** Reads CPU registers via MI. */
     private customReadRegistersRequest(response: any): void {
-        this.miDebugger.sendCommand('data-list-register-values x').then(
+        this.miDebugger.sendCommand(`data-list-register-values --thread ${this.currentThreadId} x`).then(
             (result) => {
                 if (result.resultRecords.resultClass === 'done') {
                     const registers = result.resultRecords.results[0][1];
@@ -395,7 +400,7 @@ export class GDBDebugSession extends DebugSession {
 
     /** Reads register names via MI. */
     private customReadRegisterListRequest(response: any): void {
-        this.miDebugger.sendCommand('data-list-register-names').then(
+        this.miDebugger.sendCommand(`data-list-register-names --thread ${this.currentThreadId}`).then(
             (result) => {
                 if (result.resultRecords.resultClass === 'done') {
                     let names: string[];
@@ -485,17 +490,28 @@ export class GDBDebugSession extends DebugSession {
     /** Emits continued events. */
     private handleRunning(info: any): void {
         this.stopped = false;
+        this.frameIdMap.clear();
+        this.nextFrameId = 256;
         this.sendEvent(new ContinuedEvent(this.currentThreadId, true));
         this.sendEvent(new CustomContinuedEvent(this.currentThreadId, true));
     }
 
     /** Emits stopped events for breakpoints. */
     private handleBreakpoint(info: any): void {
-        const threadId = parseInt(info.record('thread-id') || this.currentThreadId);
+        const threadId = parseInt(info.record('thread-id') || this.currentThreadId, 10);
         this.stopped = true;
         this.stoppedReason = 'breakpoint';
         this.sendEvent(new StoppedEvent('breakpoint', threadId, true));
         this.sendEvent(new CustomStopEvent('breakpoint', threadId));
+    }
+
+    /** Emits stopped events for watchpoint hits. */
+    private handleWatchpoint(info: any): void {
+        const threadId = parseInt(info.record('thread-id') || this.currentThreadId, 10);
+        this.stopped = true;
+        this.stoppedReason = 'data breakpoint';
+        this.sendEvent(new StoppedEvent('data breakpoint', threadId, true));
+        this.sendEvent(new CustomStopEvent('data breakpoint', threadId));
     }
 
     /** Emits stopped events for step end. */
@@ -506,12 +522,22 @@ export class GDBDebugSession extends DebugSession {
         this.sendEvent(new CustomStopEvent('step', this.currentThreadId));
     }
 
-    /** Emits stopped events for user pause. */
+    /** Emits stopped events for signals (SIGINT = pause, others = exception). */
     private handlePause(info: any): void {
+        const signalName = info.record('signal-name');
+        const threadId = parseInt(info.record('thread-id') || this.currentThreadId, 10);
         this.stopped = true;
-        this.stoppedReason = 'user request';
-        this.sendEvent(new StoppedEvent('user request', this.currentThreadId, true));
-        this.sendEvent(new CustomStopEvent('user request', this.currentThreadId));
+
+        if (signalName === 'SIGINT' || signalName === 'SIGSTOP') {
+            this.stoppedReason = 'user request';
+            this.sendEvent(new StoppedEvent('user request', threadId, true));
+            this.sendEvent(new CustomStopEvent('user request', threadId));
+        } else {
+            const signalText = info.record('signal-meaning') || signalName || 'signal';
+            this.stoppedReason = 'exception';
+            this.sendEvent(new StoppedEvent('exception', threadId, true, signalText));
+            this.sendEvent(new CustomStopEvent('exception', threadId));
+        }
     }
 
     /** Emits thread started. */
@@ -727,11 +753,11 @@ export class GDBDebugSession extends DebugSession {
 
         try {
             const result = await this.miDebugger.sendCommand('thread-list-ids');
-            const threadIds: number[] = result.result('thread-ids').map((t: any) => parseInt(t[1]));
+            const threadIds: number[] = result.result('thread-ids').map((t: any) => parseInt(t[1], 10));
             const currentThreadId = result.result('current-thread-id');
 
             if (currentThreadId) {
-                this.currentThreadId = parseInt(currentThreadId);
+                this.currentThreadId = parseInt(currentThreadId, 10);
             } else {
                 await this.miDebugger.sendCommand(`thread-select ${threadIds[0]}`);
                 this.currentThreadId = threadIds[0];
@@ -746,7 +772,7 @@ export class GDBDebugSession extends DebugSession {
                     let thread = info.result('threads');
                     if (thread.length === 1) {
                         thread = thread[0];
-                        const id = parseInt(MINode.valueOf(thread, 'id'));
+                        const id = parseInt(MINode.valueOf(thread, 'id'), 10);
                         const targetId = MINode.valueOf(thread, 'target-id');
                         const details = MINode.valueOf(thread, 'details');
                         return new Thread(id, details || targetId);
@@ -768,7 +794,8 @@ export class GDBDebugSession extends DebugSession {
             const frames: StackFrame[] = [];
 
             for (const frame of stack) {
-                const frameIndex = 0xffff & ((args.threadId << 8) | (0xff & frame.level));
+                const frameIndex = this.nextFrameId++;
+                this.frameIdMap.set(frameIndex, { threadId: args.threadId, frameLevel: parseInt(frame.level, 10) });
                 const filePath = frame.file;
                 let useDisassembly = this.forceDisassembly || !filePath;
 
@@ -860,10 +887,11 @@ export class GDBDebugSession extends DebugSession {
 
     /** Handles scopes request. */
     protected scopesRequest(response: any, args: any): void {
+        const frameId = parseInt(args.frameId, 10);
         const scopes = new Array<Scope>();
-        scopes.push(new Scope('Local', parseInt(args.frameId), false));
+        scopes.push(new Scope('Local', frameId, false));
         scopes.push(new Scope('Global', 254, false));
-        scopes.push(new Scope('Static', STATIC_HANDLES_START + parseInt(args.frameId), false));
+        scopes.push(new Scope('Static', STATIC_HANDLES_START + frameId, false));
         response.body = { scopes };
         this.sendResponse(response);
     }
@@ -1045,18 +1073,29 @@ export class GDBDebugSession extends DebugSession {
         }
 
         if (args.variablesReference >= 256 && args.variablesReference < STATIC_HANDLES_START) {
-            const frameLevel = 0xff & args.variablesReference;
-            const threadId = (0xff00 & args.variablesReference) >>> 8;
-            return this.stackVariablesRequest(threadId, frameLevel, response, args);
+            const frameInfo = this.frameIdMap.get(args.variablesReference);
+            if (frameInfo) {
+                return this.stackVariablesRequest(frameInfo.threadId, frameInfo.frameLevel, response, args);
+            }
+            this.handleMsg('log', `Warning: stale or unknown variablesReference ${args.variablesReference} in frameIdMap\n`);
+            response.body = { variables: [] };
+            this.sendResponse(response);
+            return;
         }
 
         if (
             args.variablesReference >= STATIC_HANDLES_START &&
             args.variablesReference <= STATIC_HANDLES_END
         ) {
-            const frameLevel = 0xff & args.variablesReference;
-            const threadId = (0xff00 & args.variablesReference) >>> 8;
-            return this.staticVariablesRequest(threadId, frameLevel, response, args);
+            const origFrameId = args.variablesReference - STATIC_HANDLES_START;
+            const frameInfo = this.frameIdMap.get(origFrameId);
+            if (frameInfo) {
+                return this.staticVariablesRequest(frameInfo.threadId, frameInfo.frameLevel, response, args);
+            }
+            this.handleMsg('log', `Warning: stale or unknown frame ID ${origFrameId} (variablesReference ${args.variablesReference}) in frameIdMap\n`);
+            response.body = { variables: [] };
+            this.sendResponse(response);
+            return;
         }
 
         varRef = this.variableHandles.get(args.variablesReference);
@@ -1274,7 +1313,7 @@ export class GDBDebugSession extends DebugSession {
                     this.activeEditorPath.startsWith('disassembly://')
                 ) {
                     const func = this.symbolTable.getFunctionByName(frame.function, frame.fileName);
-                    if (encodeDisassembly(func.name, func.file) === this.activeEditorPath) {
+                    if (func && encodeDisassembly(func.name, func.file) === this.activeEditorPath) {
                         useDisassembly = true;
                     }
                 }
@@ -1311,7 +1350,7 @@ export class GDBDebugSession extends DebugSession {
                     this.activeEditorPath.startsWith('disassembly://')
                 ) {
                     const func = this.symbolTable.getFunctionByName(frame.function, frame.fileName);
-                    if (encodeDisassembly(func.name, func.file) === this.activeEditorPath) {
+                    if (func && encodeDisassembly(func.name, func.file) === this.activeEditorPath) {
                         useDisassembly = true;
                     }
                 }
