@@ -25,7 +25,7 @@ export class AdapterOutputEvent extends Event {
 export class StoppedEvent extends Event {
     constructor(reason: string, threadId: number, allThreadsStopped: boolean, text?: string) {
         const body: any = { reason, threadId, allThreadsStopped };
-        if (text) {
+        if (text !== undefined) {
             body.text = text;
         }
         super('stopped', body);
