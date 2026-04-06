@@ -1,4 +1,3 @@
-
 name: Build and upload to NPM
 
 on:
@@ -18,10 +17,10 @@ jobs:
       id-token: write  # required to use OIDC
     steps:
       - uses: actions/checkout@v6
-      - name: install node v22
+      - name: install node v25
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 25.4.0
           registry-url: 'https://registry.npmjs.org'
       - name: Update npm to latest
         run: npm install -g npm@latest
