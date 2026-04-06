@@ -490,6 +490,8 @@ export class GDBDebugSession extends DebugSession {
     /** Emits continued events. */
     private handleRunning(info: any): void {
         this.stopped = false;
+        this.frameIdMap.clear();
+        this.nextFrameId = 256;
         this.sendEvent(new ContinuedEvent(this.currentThreadId, true));
         this.sendEvent(new CustomContinuedEvent(this.currentThreadId, true));
     }
@@ -1075,7 +1077,10 @@ export class GDBDebugSession extends DebugSession {
             if (frameInfo) {
                 return this.stackVariablesRequest(frameInfo.threadId, frameInfo.frameLevel, response, args);
             }
-            return this.stackVariablesRequest(0, 0, response, args);
+            this.handleMsg('log', `Warning: stale or unknown variablesReference ${args.variablesReference} in frameIdMap\n`);
+            response.body = { variables: [] };
+            this.sendResponse(response);
+            return;
         }
 
         if (
@@ -1087,7 +1092,10 @@ export class GDBDebugSession extends DebugSession {
             if (frameInfo) {
                 return this.staticVariablesRequest(frameInfo.threadId, frameInfo.frameLevel, response, args);
             }
-            return this.staticVariablesRequest(0, 0, response, args);
+            this.handleMsg('log', `Warning: stale or unknown frame ID ${origFrameId} (variablesReference ${args.variablesReference}) in frameIdMap\n`);
+            response.body = { variables: [] };
+            this.sendResponse(response);
+            return;
         }
 
         varRef = this.variableHandles.get(args.variablesReference);
@@ -1305,7 +1313,7 @@ export class GDBDebugSession extends DebugSession {
                     this.activeEditorPath.startsWith('disassembly://')
                 ) {
                     const func = this.symbolTable.getFunctionByName(frame.function, frame.fileName);
-                    if (encodeDisassembly(func.name, func.file) === this.activeEditorPath) {
+                    if (func && encodeDisassembly(func.name, func.file) === this.activeEditorPath) {
                         useDisassembly = true;
                     }
                 }
@@ -1342,7 +1350,7 @@ export class GDBDebugSession extends DebugSession {
                     this.activeEditorPath.startsWith('disassembly://')
                 ) {
                     const func = this.symbolTable.getFunctionByName(frame.function, frame.fileName);
-                    if (encodeDisassembly(func.name, func.file) === this.activeEditorPath) {
+                    if (func && encodeDisassembly(func.name, func.file) === this.activeEditorPath) {
                         useDisassembly = true;
                     }
                 }
