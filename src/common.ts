@@ -23,8 +23,12 @@ export class AdapterOutputEvent extends Event {
  * Custom debug adapter event emitted when the debuggee stops execution.
  */
 export class StoppedEvent extends Event {
-    constructor(reason: string, threadId: number, allThreadsStopped: boolean) {
-        super('stopped', { reason, threadId, allThreadsStopped });
+    constructor(reason: string, threadId: number, allThreadsStopped: boolean, text?: string) {
+        const body: any = { reason, threadId, allThreadsStopped };
+        if (text !== undefined) {
+            body.text = text;
+        }
+        super('stopped', body);
     }
 }
 
