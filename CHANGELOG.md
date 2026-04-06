@@ -2,8 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.1.3] - 2026-04-xx
+
+### Added
+- Detect and handle watchpoint/data-breakpoint stop events, emitting dedicated stop notifications
+
+### Fixed
+- More reliable stack-frame identification and reset of frame mappings when execution resumes
+- Safer variable and scope resolution for local and static variables, with graceful handling when context is missing
+- Register reads scoped to the active thread in multi-threaded sessions
+- Signals better mapped to pause reasons; numeric parsing hardened for base-10
+
+---
 
 ## [1.1.2] - 2026-03-22
 
