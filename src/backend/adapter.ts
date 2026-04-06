@@ -533,9 +533,8 @@ export class GDBDebugSession extends DebugSession {
             this.sendEvent(new StoppedEvent('user request', threadId, true));
             this.sendEvent(new CustomStopEvent('user request', threadId));
         } else {
-            const signalText = info.record('signal-meaning') || signalName || 'signal';
             this.stoppedReason = 'exception';
-            this.sendEvent(new StoppedEvent('exception', threadId, true, signalText));
+            this.sendEvent(new StoppedEvent('exception', threadId, true));
             this.sendEvent(new CustomStopEvent('exception', threadId));
         }
     }
