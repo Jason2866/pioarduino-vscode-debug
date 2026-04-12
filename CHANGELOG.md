@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 
+## [1.1.4] - 2026-04-12
+
+### Changed
+- Replaced `xml2js` with `fast-xml-parser` — smaller, zero dependencies, faster SVD parsing
+
+### Fixed
+- Guard against missing `addressBlock` and `registers` in SVD peripheral definitions
+- Removed redundant `toLowerCase()` call on enum values (already handled by `parseBigInt`)
+
+---
+
 ## [1.1.3] - 2026-04-06
 
 ### Added

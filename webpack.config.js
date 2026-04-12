@@ -17,7 +17,6 @@ module.exports = [
         externals: {
             vscode: 'vscode',
             '@vscode/debugadapter': '@vscode/debugadapter',
-            xml2js: 'xml2js',
         },
         resolve: {
             extensions: ['.ts', '.js'],
@@ -47,7 +46,6 @@ module.exports = [
         externals: {
             vscode: 'vscode',
             '@vscode/debugadapter': '@vscode/debugadapter',
-            xml2js: 'xml2js',
         },
         resolve: {
             extensions: ['.ts', '.js'],

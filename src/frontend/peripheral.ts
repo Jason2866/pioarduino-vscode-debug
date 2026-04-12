@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import * as xml2js from 'xml2js';
+import { XMLParser } from 'fast-xml-parser';
 import { NumberFormat } from '../common';
 import {
     hexFormat,
@@ -793,40 +793,41 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         fieldDefs.map((field) => {
             let offset: number;
             let width: number;
-            const description = field.description ? field.description[0] : '';
+            const description = field.description ? field.description : '';
 
-            if (field.bitOffset && field.bitWidth) {
-                offset = parseInteger(field.bitOffset[0]);
-                width = parseInteger(field.bitWidth[0]);
+            if (field.bitOffset !== undefined && field.bitWidth !== undefined) {
+                offset = parseInteger(field.bitOffset);
+                width = parseInteger(field.bitWidth);
             } else if (field.bitRange) {
-                let range = field.bitRange[0];
+                let range = String(field.bitRange);
                 range = range.substring(1, range.length - 1);
-                range = range.split(':');
-                const msb = parseInteger(range[0]);
-                const lsb = parseInteger(range[1]);
+                const parts = range.split(':');
+                const msb = parseInteger(parts[0]);
+                const lsb = parseInteger(parts[1]);
                 width = msb - lsb + 1;
                 offset = lsb;
-            } else if (field.msb && field.lsb) {
-                const msb = parseInteger(field.msb[0]);
-                const lsb = parseInteger(field.lsb[0]);
+            } else if (field.msb !== undefined && field.lsb !== undefined) {
+                const msb = parseInteger(field.msb);
+                const lsb = parseInteger(field.lsb);
                 width = msb - lsb + 1;
                 offset = lsb;
             } else {
                 throw new Error(
-                    `Unable to parse SVD file: field ${field.name[0]} must have either bitOffset and bitWidth elements, bitRange Element, or msb and lsb elements.`
+                    `Unable to parse SVD file: field ${field.name} must have either bitOffset and bitWidth elements, bitRange Element, or msb and lsb elements.`
                 );
             }
 
             let enumeration: any = null;
             if (field.enumeratedValues) {
                 enumeration = {};
-                field.enumeratedValues[0].enumeratedValue.map((enumVal: any) => {
-                    if (enumVal.value && enumVal.value.length > 0) {
-                        const name = enumVal.name[0];
-                        const desc = enumVal.description ? enumVal.description[0] : name;
-                        const val = parseBigInt(enumVal.value[0].toLowerCase());
+                const enumValues = field.enumeratedValues.enumeratedValue;
+                enumValues.map((enumVal: any) => {
+                    if (enumVal.value !== undefined) {
+                        const name = enumVal.name;
+                        const desc = enumVal.description ? enumVal.description : name;
+                        const val = parseBigInt(String(enumVal.value));
                         if (val === undefined) {
-                            console.warn(`Failed to parse enumeration value for ${name}: ${enumVal.value[0]}`);
+                            console.warn(`Failed to parse enumeration value for ${name}: ${enumVal.value}`);
                             return;
                         }
                         enumeration[val.toString()] = new EnumerationValue(name, desc, val);
@@ -838,7 +839,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             }
 
             const fieldOptions: any = {
-                name: field.name[0],
+                name: field.name,
                 description,
                 offset,
                 width,
@@ -848,20 +849,20 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             if (field.dim) {
                 if (!field.dimIncrement) {
                     throw new Error(
-                        `Unable to parse SVD file: field ${field.name[0]} has dim element, with no dimIncrement element.`
+                        `Unable to parse SVD file: field ${field.name} has dim element, with no dimIncrement element.`
                     );
                 }
-                const dimCount = parseInteger(field.dim[0]);
-                const dimIncrement = parseInteger(field.dimIncrement[0]);
+                const dimCount = parseInteger(field.dim);
+                const dimIncrement = parseInteger(field.dimIncrement);
                 let dimIndices: string[] = [];
                 if (field.dimIndex) {
-                    dimIndices = parseDimIndex(field.dimIndex[0], dimCount);
+                    dimIndices = parseDimIndex(field.dimIndex, dimCount);
                 } else {
                     for (let i = 0; i < dimCount; i++) {
                         dimIndices.push(`${i}`);
                     }
                 }
-                const baseName = field.name[0];
+                const baseName = field.name;
                 const baseOffset = offset;
                 for (let i = 0; i < dimCount; i++) {
                     const name = baseName.replace('%s', dimIndices[i]);
@@ -886,16 +887,16 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         registerDefs.forEach((reg) => {
             const options: any = {};
             if (reg.description) {
-                options.description = reg.description[0];
+                options.description = reg.description;
             }
             if (reg.access) {
-                options.accessType = ACCESS_MAP[reg.access[0]];
+                options.accessType = ACCESS_MAP[reg.access];
             }
             if (reg.size) {
-                options.size = parseInteger(reg.size[0]);
+                options.size = parseInteger(reg.size);
             }
             if (reg.resetValue) {
-                const parsed = parseBigInt(reg.resetValue[0]);
+                const parsed = parseBigInt(reg.resetValue);
                 if (parsed !== undefined) {
                     options.resetValue = parsed;
                 }
@@ -904,21 +905,21 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             if (reg.dim) {
                 if (!reg.dimIncrement) {
                     throw new Error(
-                        `Unable to parse SVD file: register ${reg.name[0]} has dim element, with no dimIncrement element.`
+                        `Unable to parse SVD file: register ${reg.name} has dim element, with no dimIncrement element.`
                     );
                 }
-                const dimCount = parseInteger(reg.dim[0]);
-                const dimIncrement = parseInteger(reg.dimIncrement[0]);
+                const dimCount = parseInteger(reg.dim);
+                const dimIncrement = parseInteger(reg.dimIncrement);
                 let dimIndices: string[] = [];
                 if (reg.dimIndex) {
-                    dimIndices = parseDimIndex(reg.dimIndex[0], dimCount);
+                    dimIndices = parseDimIndex(reg.dimIndex, dimCount);
                 } else {
                     for (let i = 0; i < dimCount; i++) {
                         dimIndices.push(`${i}`);
                     }
                 }
-                const baseName = reg.name[0];
-                const baseOffset = parseInteger(reg.addressOffset[0]);
+                const baseName = reg.name;
+                const baseOffset = parseInteger(reg.addressOffset);
                 for (let i = 0; i < dimCount; i++) {
                     const name = baseName.replace('%s', dimIndices[i]);
                     const registerNode = new RegisterNode(parent, {
@@ -926,19 +927,19 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                         name,
                         addressOffset: baseOffset + dimIncrement * i,
                     });
-                    if (reg.fields && reg.fields.length === 1) {
-                        this._parseFields(reg.fields[0].field, registerNode);
+                    if (reg.fields && reg.fields.field) {
+                        this._parseFields(reg.fields.field, registerNode);
                     }
                     registers.push(registerNode);
                 }
             } else {
                 const registerNode = new RegisterNode(parent, {
                     ...options,
-                    name: reg.name[0],
-                    addressOffset: parseInteger(reg.addressOffset[0]),
+                    name: reg.name,
+                    addressOffset: parseInteger(reg.addressOffset),
                 });
-                if (reg.fields && reg.fields.length === 1) {
-                    this._parseFields(reg.fields[0].field, registerNode);
+                if (reg.fields && reg.fields.field) {
+                    this._parseFields(reg.fields.field, registerNode);
                 }
                 registers.push(registerNode);
             }
@@ -956,16 +957,16 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         clusterDefs.forEach((cluster) => {
             const options: any = {};
             if (cluster.description) {
-                options.description = cluster.description[0];
+                options.description = cluster.description;
             }
             if (cluster.access) {
-                options.accessType = ACCESS_MAP[cluster.access[0]];
+                options.accessType = ACCESS_MAP[cluster.access];
             }
             if (cluster.size) {
-                options.size = parseInteger(cluster.size[0]);
+                options.size = parseInteger(cluster.size);
             }
             if (cluster.resetValue) {
-                const parsed = parseBigInt(cluster.resetValue[0]);
+                const parsed = parseBigInt(cluster.resetValue);
                 if (parsed !== undefined) {
                     options.resetValue = parsed;
                 }
@@ -974,21 +975,21 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             if (cluster.dim) {
                 if (!cluster.dimIncrement) {
                     throw new Error(
-                        `Unable to parse SVD file: cluster ${cluster.name[0]} has dim element, with no dimIncrement element.`
+                        `Unable to parse SVD file: cluster ${cluster.name} has dim element, with no dimIncrement element.`
                     );
                 }
-                const dimCount = parseInteger(cluster.dim[0]);
-                const dimIncrement = parseInteger(cluster.dimIncrement[0]);
+                const dimCount = parseInteger(cluster.dim);
+                const dimIncrement = parseInteger(cluster.dimIncrement);
                 let dimIndices: string[] = [];
                 if (cluster.dimIndex) {
-                    dimIndices = parseDimIndex(cluster.dimIndex[0], dimCount);
+                    dimIndices = parseDimIndex(cluster.dimIndex, dimCount);
                 } else {
                     for (let i = 0; i < dimCount; i++) {
                         dimIndices.push(`${i}`);
                     }
                 }
-                const baseName = cluster.name[0];
-                const baseOffset = parseInteger(cluster.addressOffset[0]);
+                const baseName = cluster.name;
+                const baseOffset = parseInteger(cluster.addressOffset);
                 for (let i = 0; i < dimCount; i++) {
                     const name = baseName.replace('%s', dimIndices[i]);
                     const clusterNode = new ClusterNode(parent, {
@@ -1004,8 +1005,8 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             } else {
                 const clusterNode = new ClusterNode(parent, {
                     ...options,
-                    name: cluster.name[0],
-                    addressOffset: parseInteger(cluster.addressOffset[0]),
+                    name: cluster.name,
+                    addressOffset: parseInteger(cluster.addressOffset),
                 });
                 if (cluster.register) {
                     this._parseRegisters(cluster.register, clusterNode);
@@ -1018,11 +1019,11 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
 
     /** Builds a PeripheralNode from SVD peripheral. */
     _parsePeripheral(peripheralDef: any, defaults: any): PeripheralNode {
-        const totalLength = parseInteger(peripheralDef.addressBlock[0].size[0]);
+        const totalLength = peripheralDef.addressBlock ? parseInteger(peripheralDef.addressBlock.size) : 0;
         const options: any = {
-            name: peripheralDef.name[0],
-            baseAddress: parseInteger(peripheralDef.baseAddress[0]),
-            description: peripheralDef.description ? peripheralDef.description[0] : '',
+            name: peripheralDef.name,
+            baseAddress: parseInteger(peripheralDef.baseAddress),
+            description: peripheralDef.description ? peripheralDef.description : '',
             totalLength,
         };
 
@@ -1039,28 +1040,28 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
 
         // Override with peripheral-specific values
         if (peripheralDef.access) {
-            options.accessType = ACCESS_MAP[peripheralDef.access[0]];
+            options.accessType = ACCESS_MAP[peripheralDef.access];
         }
         if (peripheralDef.size) {
-            options.size = parseInteger(peripheralDef.size[0]);
+            options.size = parseInteger(peripheralDef.size);
         }
         if (peripheralDef.resetValue) {
-            const parsed = parseBigInt(peripheralDef.resetValue[0]);
+            const parsed = parseBigInt(peripheralDef.resetValue);
             if (parsed !== undefined) {
                 options.resetValue = parsed;
             }
         }
         if (peripheralDef.groupName) {
-            options.groupName = peripheralDef.groupName[0];
+            options.groupName = peripheralDef.groupName;
         }
 
         const peripheral = new PeripheralNode(options);
 
-        if (peripheralDef.registers[0].register) {
-            this._parseRegisters(peripheralDef.registers[0].register, peripheral);
+        if (peripheralDef.registers?.register) {
+            this._parseRegisters(peripheralDef.registers.register, peripheral);
         }
-        if (peripheralDef.registers[0].cluster) {
-            this._parseClusters(peripheralDef.registers[0].cluster, peripheral);
+        if (peripheralDef.registers?.cluster) {
+            this._parseClusters(peripheralDef.registers.cluster, peripheral);
         }
 
         return peripheral;
@@ -1073,67 +1074,76 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 if (err) {
                     return reject(err);
                 }
-                xml2js.parseString(data, (parseErr: any, result: any) => {
-                    if (parseErr) {
-                        return reject(parseErr);
+                try {
+                    const parser = new XMLParser({
+                        ignoreAttributes: false,
+                        isArray: (_name: string, jpath: string) => {
+                            const arrayPaths = [
+                                'device.peripherals.peripheral',
+                                'device.peripherals.peripheral.registers.register',
+                                'device.peripherals.peripheral.registers.cluster',
+                                'device.peripherals.peripheral.registers.cluster.register',
+                            ];
+                            return arrayPaths.includes(jpath) || jpath.endsWith('.fields.field') || jpath.endsWith('.enumeratedValues.enumeratedValue');
+                        },
+                    });
+                    const result = parser.parse(data);
+
+                    const peripheralMap: { [name: string]: any } = {};
+                    const defaults: any = {
+                        accessType: AccessType.ReadWrite,
+                        size: 32,
+                        resetValue: 0n,
+                    };
+
+                    if (result.device.resetValue) {
+                        const parsed = parseBigInt(result.device.resetValue);
+                        if (parsed !== undefined) {
+                            defaults.resetValue = parsed;
+                        }
                     }
-                    try {
-                        const peripheralMap: { [name: string]: any } = {};
-                        const defaults: any = {
-                            accessType: AccessType.ReadWrite,
-                            size: 32,
-                            resetValue: 0n,
-                        };
-
-                        if (result.device.resetValue) {
-                            const parsed = parseBigInt(result.device.resetValue[0]);
-                            if (parsed !== undefined) {
-                                defaults.resetValue = parsed;
-                            }
-                        }
-                        if (result.device.size) {
-                            defaults.size = parseInteger(result.device.size[0]);
-                        }
-                        if (result.device.access) {
-                            defaults.accessType = ACCESS_MAP[result.device.access[0]];
-                        }
-
-                        result.device.peripherals[0].peripheral.forEach((periph: any) => {
-                            const name = periph.name[0];
-                            peripheralMap[name] = periph;
-                        });
-
-                        // Handle derived peripherals
-                        for (const name in peripheralMap) {
-                            const periph = peripheralMap[name];
-                            if (periph.$ && periph.$.derivedFrom) {
-                                const base = peripheralMap[periph.$.derivedFrom];
-                                peripheralMap[name] = { ...base, ...periph };
-                            }
-                        }
-
-                        this.peripherials = [];
-                        for (const name in peripheralMap) {
-                            this.peripherials.push(this._parsePeripheral(peripheralMap[name], defaults));
-                        }
-
-                        this.peripherials.sort((a, b) =>
-                            a.groupName > b.groupName
-                                ? 1
-                                : a.groupName < b.groupName
-                                ? -1
-                                : a.name > b.name
-                                ? 1
-                                : a.name < b.name
-                                ? -1
-                                : 0
-                        );
-
-                        return resolve(true);
-                    } catch (e) {
-                        return reject(e);
+                    if (result.device.size) {
+                        defaults.size = parseInteger(result.device.size);
                     }
-                });
+                    if (result.device.access) {
+                        defaults.accessType = ACCESS_MAP[result.device.access];
+                    }
+
+                    result.device.peripherals.peripheral.forEach((periph: any) => {
+                        const name = periph.name;
+                        peripheralMap[name] = periph;
+                    });
+
+                    // Handle derived peripherals
+                    for (const name in peripheralMap) {
+                        const periph = peripheralMap[name];
+                        if (periph['@_derivedFrom']) {
+                            const base = peripheralMap[periph['@_derivedFrom']];
+                            peripheralMap[name] = { ...base, ...periph };
+                        }
+                    }
+
+                    this.peripherials = [];
+                    for (const name in peripheralMap) {
+                        this.peripherials.push(this._parsePeripheral(peripheralMap[name], defaults));
+                    }
+
+                    this.peripherials.sort((a, b) =>
+                        a.groupName > b.groupName
+                            ? 1
+                            : a.groupName < b.groupName
+                            ? -1
+                            : a.name > b.name
+                            ? 1
+                            : a.name < b.name
+                            ? -1
+                            : 0
+                    );
+
+                    return resolve(true);
+                } catch (e) {
+                    return reject(e);
+                }
             });
         });
     }
