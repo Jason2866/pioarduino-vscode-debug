@@ -825,7 +825,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                     if (enumVal.value !== undefined) {
                         const name = enumVal.name;
                         const desc = enumVal.description ? enumVal.description : name;
-                        const val = parseBigInt(String(enumVal.value).toLowerCase());
+                        const val = parseBigInt(String(enumVal.value));
                         if (val === undefined) {
                             console.warn(`Failed to parse enumeration value for ${name}: ${enumVal.value}`);
                             return;
@@ -1019,7 +1019,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
 
     /** Builds a PeripheralNode from SVD peripheral. */
     _parsePeripheral(peripheralDef: any, defaults: any): PeripheralNode {
-        const totalLength = parseInteger(peripheralDef.addressBlock.size);
+        const totalLength = peripheralDef.addressBlock ? parseInteger(peripheralDef.addressBlock.size) : 0;
         const options: any = {
             name: peripheralDef.name,
             baseAddress: parseInteger(peripheralDef.baseAddress),
@@ -1057,10 +1057,10 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
 
         const peripheral = new PeripheralNode(options);
 
-        if (peripheralDef.registers.register) {
+        if (peripheralDef.registers?.register) {
             this._parseRegisters(peripheralDef.registers.register, peripheral);
         }
-        if (peripheralDef.registers.cluster) {
+        if (peripheralDef.registers?.cluster) {
             this._parseClusters(peripheralDef.registers.cluster, peripheral);
         }
 
