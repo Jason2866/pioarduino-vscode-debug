@@ -9,6 +9,10 @@ module.exports = {
     '!**/*.test.ts',
     '!**/*.spec.ts',
     '!**/*.d.ts',
+    '!__mocks__/**',
   ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
+  moduleNameMapper: {
+    '^vscode$': '<rootDir>/__mocks__/vscode.ts',
+  },
 };

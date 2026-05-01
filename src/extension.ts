@@ -8,6 +8,7 @@ import { MemoryContentProvider } from './frontend/memory_content_provider';
 import { MemoryTreeProvider } from './frontend/memory_tree_provider';
 import { PeripheralTreeProvider, RecordType as PeripheralRecordType } from './frontend/peripheral';
 import { RegisterTreeProvider, RecordType as RegisterRecordType } from './frontend/registers';
+import { getDiagnosticsManager } from './frontend/diagnostics';
 
 /**
  * Main entry point and controller for the PlatformIO Debug VS Code extension.
@@ -21,6 +22,7 @@ class PlatformIODebugExtension {
     private memoryTreeProvider: MemoryTreeProvider;
     private disassemblyTreeProvider: DisassemblyTreeProvider;
     private memoryContentProvider: MemoryContentProvider;
+    private diagnostics = getDiagnosticsManager();
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
@@ -64,6 +66,9 @@ class PlatformIODebugExtension {
             vscode.commands.registerCommand('platformio-debug.examineMemory', this.examineMemory.bind(this)),
             vscode.commands.registerCommand('platformio-debug.viewDisassembly', this.showDisassembly.bind(this)),
             vscode.commands.registerCommand('platformio-debug.setForceDisassembly', this.setForceDisassembly.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.diagnostics.showLog', this.showDiagnosticsLog.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.diagnostics.exportLog', this.exportDiagnosticsLog.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.diagnostics.clearLog', this.clearDiagnosticsLog.bind(this)),
 
             vscode.debug.onDidReceiveDebugSessionCustomEvent(this.receivedCustomEvent.bind(this)),
             vscode.debug.onDidStartDebugSession(this.debugSessionStarted.bind(this)),
@@ -445,6 +450,25 @@ class PlatformIODebugExtension {
             content += '\n';
         }
         this.adapterOutputChannel.append(content);
+    }
+
+    /** Shows the diagnostic log output channel. */
+    private showDiagnosticsLog(): void {
+        this.diagnostics.showOutputChannel();
+    }
+
+    /** Exports diagnostic log to clipboard. */
+    private exportDiagnosticsLog(): void {
+        const logContent = this.diagnostics.exportLog();
+        vscode.env.clipboard.writeText(logContent).then(() => {
+            this.diagnostics.showInfo('Diagnostic log copied to clipboard');
+        });
+    }
+
+    /** Clears the diagnostic log. */
+    private clearDiagnosticsLog(): void {
+        this.diagnostics.clearLog();
+        this.diagnostics.showInfo('Diagnostic log cleared');
     }
 }
 
