@@ -100,6 +100,16 @@ class PlatformIODebugExtension {
                 if (e && e.textEditor.document.fileName.endsWith('.dbgmem')) {
                     this.memoryContentProvider.handleSelection(e);
                 }
+            }),
+            vscode.workspace.onDidChangeTextDocument(e => {
+                if (e.document.uri.scheme === 'examinememory') {
+                    const editor = vscode.window.visibleTextEditors.find(
+                        ed => ed.document.uri.toString() === e.document.uri.toString()
+                    );
+                    if (editor) {
+                        this.memoryContentProvider.applyDiffDecorations(editor);
+                    }
+                }
             })
         );
     }

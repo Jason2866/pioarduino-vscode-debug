@@ -41,6 +41,13 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
         dark: { borderColor: 'lightblue' },
     });
 
+    private diffDecorationType = vscode.window.createTextEditorDecorationType({
+        overviewRulerColor: 'orange',
+        overviewRulerLane: vscode.OverviewRulerLane.Right,
+        light: { backgroundColor: 'rgba(255, 140, 0, 0.25)' },
+        dark: { backgroundColor: 'rgba(255, 165, 0, 0.25)' },
+    });
+
     // New: Data type interpretation settings
     private dataType: MemoryDataType = MemoryDataType.U8;
     private endianness: Endianness = Endianness.Little;
@@ -55,6 +62,7 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
     // Memory diff tracking — per-URI to prevent cross-contamination between open windows
     private previousBytes: number[] = [];
     private readonly uriBytes = new Map<string, { current: number[]; previous: number[] }>();
+    private readonly uriChangedOffsets = new Map<string, Set<number>>();
 
     /** Sets the data type for interpretation. */
     setDataType(type: MemoryDataType): void {
@@ -150,6 +158,7 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                         uriState.previous = uriState.current;
                         uriState.current = bytes.slice();
                         this.uriBytes.set(uriKey, uriState);
+                        this.uriChangedOffsets.set(uriKey, changedOffsets);
 
                         let output = '';
 
@@ -436,6 +445,24 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
         }
 
         return ranges;
+    }
+
+    /** Applies diff decorations (highlighting changed bytes) to the given editor. */
+    applyDiffDecorations(editor: vscode.TextEditor): void {
+        const uriKey = editor.document.uri.toString();
+        const changedOffsets = this.uriChangedOffsets.get(uriKey);
+        if (!changedOffsets || changedOffsets.size === 0) {
+            editor.setDecorations(this.diffDecorationType, []);
+            return;
+        }
+        const ranges: vscode.Range[] = [];
+        for (const offset of changedOffsets) {
+            ranges.push(...this.getRanges(offset, offset, false));
+            if (this.showAscii) {
+                ranges.push(...this.getRanges(offset, offset, true));
+            }
+        }
+        editor.setDecorations(this.diffDecorationType, ranges);
     }
 
     /** Applies decorations for the selected range. */

@@ -165,7 +165,7 @@ export class DiagnosticsManager {
 
         if (actions && actions.length > 0) {
             const actionLabels = actions.map(a => a.label)
-            vscode.window.showErrorMessage(message, ...actionLabels)
+            Promise.resolve(vscode.window.showErrorMessage(message, ...actionLabels))
                 .then(selected => {
                     if (selected) {
                         const action = actions.find(a => a.label === selected)
@@ -177,6 +177,7 @@ export class DiagnosticsManager {
                         }
                     }
                 })
+                .catch(err => this.error('DiagnosticsManager', `Error dialog promise failed: ${err}`))
         } else {
             vscode.window.showErrorMessage(message)
         }
@@ -190,7 +191,7 @@ export class DiagnosticsManager {
 
         if (actions && actions.length > 0) {
             const actionLabels = actions.map(a => a.label)
-            vscode.window.showWarningMessage(message, ...actionLabels)
+            Promise.resolve(vscode.window.showWarningMessage(message, ...actionLabels))
                 .then(selected => {
                     if (selected) {
                         const action = actions.find(a => a.label === selected)
@@ -201,6 +202,7 @@ export class DiagnosticsManager {
                         }
                     }
                 })
+                .catch(err => this.error('DiagnosticsManager', `Warning dialog promise failed: ${err}`))
         } else {
             vscode.window.showWarningMessage(message)
         }
@@ -214,7 +216,7 @@ export class DiagnosticsManager {
 
         if (actions && actions.length > 0) {
             const actionLabels = actions.map(a => a.label)
-            vscode.window.showInformationMessage(message, ...actionLabels)
+            Promise.resolve(vscode.window.showInformationMessage(message, ...actionLabels))
                 .then(selected => {
                     if (selected) {
                         const action = actions.find(a => a.label === selected)
@@ -225,6 +227,7 @@ export class DiagnosticsManager {
                         }
                     }
                 })
+                .catch(err => this.error('DiagnosticsManager', `Info dialog promise failed: ${err}`))
         } else {
             vscode.window.showInformationMessage(message)
         }
