@@ -22,17 +22,10 @@ const mockUri = {
     file: jest.fn((path: string) => ({ fsPath: path, toString: () => `file://${path}` }))
 }
 
-// Helper to create a proper Thenable mock
-const createMockThenable = (resolvedValue?: any) => {
-    return {
-        then: jest.fn((onfulfilled?: (value: any) => any) => {
-            if (onfulfilled) {
-                onfulfilled(resolvedValue)
-            }
-            return createMockThenable(undefined)
-        }),
-        catch: jest.fn().mockReturnThis()
-    }
+// Helper to create a proper Thenable mock backed by a real Promise so that
+// callers get standard async scheduling, chaining and error semantics.
+const createMockThenable = (resolvedValue?: any): Promise<any> => {
+    return Promise.resolve(resolvedValue)
 }
 
 export const window = {

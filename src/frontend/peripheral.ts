@@ -1017,14 +1017,38 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         return clusters;
     }
 
+    /**
+     * Computes the byte span covered by the peripheral's parsed registers/clusters.
+     * Used as a fallback for `totalLength` when the SVD lacks an addressBlock.
+     */
+    private _computeCoveredRange(parent: any): number {
+        let max = 0;
+        const children: any[] = parent.children || [];
+        for (const child of children) {
+            const offset: number = child.offset || 0;
+            if (child instanceof RegisterNode) {
+                const sizeBits: number = child.size || parent.size || 32;
+                const sizeBytes = Math.ceil(sizeBits / 8);
+                if (offset + sizeBytes > max) {
+                    max = offset + sizeBytes;
+                }
+            } else if (child instanceof ClusterNode) {
+                const inner = this._computeCoveredRange(child);
+                if (offset + inner > max) {
+                    max = offset + inner;
+                }
+            }
+        }
+        return max;
+    }
+
     /** Builds a PeripheralNode from SVD peripheral. */
     _parsePeripheral(peripheralDef: any, defaults: any): PeripheralNode {
-        const totalLength = peripheralDef.addressBlock ? parseInteger(peripheralDef.addressBlock.size) : 0;
         const options: any = {
             name: peripheralDef.name,
             baseAddress: parseInteger(peripheralDef.baseAddress),
             description: peripheralDef.description ? peripheralDef.description : '',
-            totalLength,
+            totalLength: peripheralDef.addressBlock ? parseInteger(peripheralDef.addressBlock.size) : 0,
         };
 
         // Apply device-level defaults first
@@ -1062,6 +1086,13 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         }
         if (peripheralDef.registers?.cluster) {
             this._parseClusters(peripheralDef.registers.cluster, peripheral);
+        }
+
+        // Fallback: when no addressBlock is provided, derive the total span
+        // from the maximum offset+size covered by registers/clusters so that
+        // memory reads request a non-zero, correct length.
+        if (!peripheral.totalLength) {
+            peripheral.totalLength = this._computeCoveredRange(peripheral);
         }
 
         return peripheral;
@@ -1247,6 +1278,14 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         this.loaded = false;
         this.svdPath = svdPath;
         this.initialSettings = savedState;
+    }
+
+    /** Updates the SVD path and reloads the peripheral tree. */
+    reloadSVD(svdPath: string): void {
+        this.peripherials = [];
+        this.loaded = false;
+        this.svdPath = svdPath;
+        this.refresh();
     }
 
     /** Clears list and refreshes. */

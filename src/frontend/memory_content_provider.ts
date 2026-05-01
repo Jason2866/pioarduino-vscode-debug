@@ -1,6 +1,26 @@
 import * as vscode from 'vscode';
 import { hexFormat, parseQuery } from '../utils';
 
+/** Supported data types for memory interpretation. */
+export enum MemoryDataType {
+    U8 = 'u8',
+    U16 = 'u16',
+    U32 = 'u32',
+    U64 = 'u64',
+    I8 = 'i8',
+    I16 = 'i16',
+    I32 = 'i32',
+    I64 = 'i64',
+    Float = 'float',
+    Double = 'double',
+}
+
+/** Endianness options. */
+export enum Endianness {
+    Little = 'little',
+    Big = 'big',
+}
+
 /** TextDocumentContentProvider for examinememory://. */
 export class MemoryContentProvider implements vscode.TextDocumentContentProvider {
     private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
@@ -20,6 +40,41 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
         dark: { borderColor: 'lightblue' },
     });
 
+    // New: Data type interpretation settings
+    private dataType: MemoryDataType = MemoryDataType.U8;
+    private endianness: Endianness = Endianness.Little;
+
+    // New: Track memory contents for data type display
+    private currentBytes: number[] = [];
+    private currentAddress: number = 0;
+
+    /** Sets the data type for interpretation. */
+    setDataType(type: MemoryDataType): void {
+        this.dataType = type;
+    }
+
+    /** Gets the current data type. */
+    getDataType(): MemoryDataType {
+        return this.dataType;
+    }
+
+    /** Sets the endianness for multi-byte data types. */
+    setEndianness(endianness: Endianness): void {
+        this.endianness = endianness;
+    }
+
+    /** Gets the current endianness. */
+    getEndianness(): Endianness {
+        return this.endianness;
+    }
+
+    /** Toggles between little and big endian. */
+    toggleEndianness(): void {
+        this.endianness = this.endianness === Endianness.Little
+            ? Endianness.Big
+            : Endianness.Little;
+    }
+
     /** Returns hex+ASCII memory dump for the URI. */
     provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
         return new Promise((resolve, reject) => {
@@ -31,16 +86,23 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                 ? parseInt(params.length.substring(2), 16)
                 : parseInt(params.length, 10);
 
+            this.currentAddress = address;
+
             vscode.debug.activeDebugSession
                 .customRequest('read-memory', { address, length: length || 32 })
                 .then(
                     (result: any) => {
                         const bytes: number[] = result.bytes;
-                        let rowAddress = address - (address % 16);
-                        const offset = address - rowAddress;
+                        this.currentBytes = bytes;
+
                         let output = '';
 
-                        output += '  Offset: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F \t\n';
+                        // Header with data type info
+                        output += `  Data Type: ${this.dataType}, Endianness: ${this.endianness}\n`;
+                        output += `  Offset: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F  | ASCII\n`;
+
+                        let rowAddress = address - (address % 16);
+                        const offset = address - rowAddress;
                         output += hexFormat(rowAddress, 8, false) + ': ';
 
                         let asciiStr = '';
@@ -58,7 +120,7 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                                     : String.fromCharCode(bytes[i]);
 
                             if ((address + i) % 16 === 15 && i < length - 1) {
-                                output += '  ' + asciiStr;
+                                output += ' |' + asciiStr;
                                 asciiStr = '';
                                 output += '\n';
                                 rowAddress += 16;
@@ -70,8 +132,15 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                         for (let i = 0; i < remaining; i++) {
                             output += '   ';
                         }
-                        output += '  ' + asciiStr;
+                        output += ' |' + asciiStr;
                         output += '\n';
+
+                        // Add data type interpretation section
+                        const typeInfo = this.formatDataTypeInterpretation(bytes, address);
+                        if (typeInfo) {
+                            output += '\n  Data Type Interpretation:\n';
+                            output += typeInfo;
+                        }
 
                         resolve(output);
                     },
@@ -83,6 +152,154 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                     }
                 );
         });
+    }
+
+    /** Formats data type interpretation of the bytes. */
+    private formatDataTypeInterpretation(bytes: number[], baseAddress: number): string {
+        if (bytes.length === 0) return '';
+
+        const typeSize = this.getTypeSize(this.dataType);
+        let output = '';
+        let lineCount = 0;
+        const maxLines = 16; // Limit output lines
+
+        for (let i = 0; i < bytes.length && lineCount < maxLines; i += typeSize) {
+            if (i + typeSize > bytes.length) break;
+
+            const value = this.readValue(bytes, i, this.dataType, this.endianness);
+            const address = baseAddress + i;
+
+            output += `    ${hexFormat(address, 8)}: `;
+
+            switch (this.dataType) {
+                case MemoryDataType.U8:
+                case MemoryDataType.U16:
+                case MemoryDataType.U32:
+                    output += `${value} (0x${value.toString(16).toUpperCase()})\n`;
+                    break;
+                case MemoryDataType.U64:
+                    output += `${value} (0x${(value as bigint).toString(16).toUpperCase()})\n`;
+                    break;
+                case MemoryDataType.I8:
+                case MemoryDataType.I16:
+                case MemoryDataType.I32:
+                    output += `${value}\n`;
+                    break;
+                case MemoryDataType.I64:
+                    output += `${value}\n`;
+                    break;
+                case MemoryDataType.Float:
+                    output += `${value}\n`;
+                    break;
+                case MemoryDataType.Double:
+                    output += `${value}\n`;
+                    break;
+            }
+            lineCount++;
+        }
+
+        return output;
+    }
+
+    /** Gets the size of a data type in bytes. */
+    private getTypeSize(type: MemoryDataType): number {
+        switch (type) {
+            case MemoryDataType.U8:
+            case MemoryDataType.I8:
+                return 1;
+            case MemoryDataType.U16:
+            case MemoryDataType.I16:
+                return 2;
+            case MemoryDataType.U32:
+            case MemoryDataType.I32:
+            case MemoryDataType.Float:
+                return 4;
+            case MemoryDataType.U64:
+            case MemoryDataType.I64:
+            case MemoryDataType.Double:
+                return 8;
+            default:
+                return 1;
+        }
+    }
+
+    /** Reads a value from bytes at given offset with specified type and endianness. */
+    private readValue(bytes: number[], offset: number, type: MemoryDataType, endianness: Endianness): number | bigint {
+        const size = this.getTypeSize(type);
+        const buf = Buffer.alloc(size);
+
+        // Copy bytes
+        for (let i = 0; i < size; i++) {
+            buf[i] = bytes[offset + i];
+        }
+
+        // Reverse for big endian if needed
+        if (endianness === Endianness.Big) {
+            buf.reverse();
+        }
+
+        switch (type) {
+            case MemoryDataType.U8:
+                return buf.readUInt8(0);
+            case MemoryDataType.U16:
+                return buf.readUInt16LE(0);
+            case MemoryDataType.U32:
+                return buf.readUInt32LE(0);
+            case MemoryDataType.U64:
+                return buf.readBigUInt64LE(0);
+            case MemoryDataType.I8:
+                return buf.readInt8(0);
+            case MemoryDataType.I16:
+                return buf.readInt16LE(0);
+            case MemoryDataType.I32:
+                return buf.readInt32LE(0);
+            case MemoryDataType.I64:
+                return buf.readBigInt64LE(0);
+            case MemoryDataType.Float:
+                return buf.readFloatLE(0);
+            case MemoryDataType.Double:
+                return buf.readDoubleLE(0);
+            default:
+                return buf.readUInt8(0);
+        }
+    }
+
+    /** Writes a single byte to memory at the given address. */
+    async writeByte(address: number, value: number): Promise<boolean> {
+        if (!vscode.debug.activeDebugSession) {
+            return false;
+        }
+
+        try {
+            const hexValue = hexFormat(value & 0xFF, 2, false);
+            await vscode.debug.activeDebugSession.customRequest('write-memory', {
+                address,
+                data: hexValue
+            });
+            return true;
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to write memory at ${hexFormat(address, 8)}: ${error}`);
+            return false;
+        }
+    }
+
+    /** Writes multiple bytes to memory at the given address. */
+    async writeBytes(address: number, bytes: number[]): Promise<boolean> {
+        if (!vscode.debug.activeDebugSession) {
+            return false;
+        }
+
+        try {
+            const hexData = bytes.map(b => hexFormat(b & 0xFF, 2, false)).join('');
+            await vscode.debug.activeDebugSession.customRequest('write-memory', {
+                address,
+                data: hexData
+            });
+            return true;
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to write memory at ${hexFormat(address, 8)}: ${error}`);
+            return false;
+        }
     }
 
     /** Triggers a content refresh. */

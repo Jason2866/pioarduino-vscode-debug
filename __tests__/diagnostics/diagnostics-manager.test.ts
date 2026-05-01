@@ -16,13 +16,15 @@ jest.mock('vscode', () => {
         catch: jest.fn().mockReturnThis()
     }
 
+    const mockOutputChannel = {
+        appendLine: jest.fn(),
+        clear: jest.fn(),
+        show: jest.fn()
+    }
+
     return {
         window: {
-            createOutputChannel: jest.fn().mockReturnValue({
-                appendLine: jest.fn(),
-                clear: jest.fn(),
-                show: jest.fn()
-            }),
+            createOutputChannel: jest.fn().mockReturnValue(mockOutputChannel),
             showErrorMessage: jest.fn().mockReturnValue(mockThenable),
             showWarningMessage: jest.fn().mockReturnValue(mockThenable),
             showInformationMessage: jest.fn().mockReturnValue(mockThenable),
@@ -39,7 +41,8 @@ jest.mock('vscode', () => {
         },
         commands: {
             executeCommand: jest.fn().mockResolvedValue(undefined)
-        }
+        },
+        __mockOutputChannel: mockOutputChannel
     }
 })
 
@@ -312,9 +315,9 @@ describe('DiagnosticsManager', () => {
 
     describe('Output Channel', () => {
         test('showOutputChannel should call output channel show', () => {
+            const mockOutputChannel = (vscode as any).__mockOutputChannel
             manager.showOutputChannel()
-            // Output channel show was mocked
-            expect(vscode.window.createOutputChannel).toHaveBeenCalled()
+            expect(mockOutputChannel.show).toHaveBeenCalled()
         })
     })
 

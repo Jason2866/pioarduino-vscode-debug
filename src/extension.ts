@@ -4,7 +4,7 @@ import { encodeDisassembly } from './utils';
 import { PlatformIODebugConfigurationProvider } from './frontend/configprovider';
 import { DisassemblyContentProvider } from './frontend/disassembly_content_provider';
 import { DisassemblyTreeProvider } from './frontend/disassembly_tree_provider';
-import { MemoryContentProvider } from './frontend/memory_content_provider';
+import { MemoryContentProvider, MemoryDataType } from './frontend/memory_content_provider';
 import { MemoryTreeProvider } from './frontend/memory_tree_provider';
 import { PeripheralTreeProvider, RecordType as PeripheralRecordType } from './frontend/peripheral';
 import { RegisterTreeProvider, RecordType as RegisterRecordType } from './frontend/registers';
@@ -64,11 +64,15 @@ class PlatformIODebugExtension {
             vscode.commands.registerCommand('platformio-debug.memory.deleteHistoryItem', this.memoryDeleteHistoryItem.bind(this)),
             vscode.commands.registerCommand('platformio-debug.memory.clearHistory', this.memoryClearHistory.bind(this)),
             vscode.commands.registerCommand('platformio-debug.examineMemory', this.examineMemory.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.memory.setDataType', this.memorySetDataType.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.memory.toggleEndianness', this.memoryToggleEndianness.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.memory.writeByte', this.memoryWriteByte.bind(this)),
             vscode.commands.registerCommand('platformio-debug.viewDisassembly', this.showDisassembly.bind(this)),
             vscode.commands.registerCommand('platformio-debug.setForceDisassembly', this.setForceDisassembly.bind(this)),
             vscode.commands.registerCommand('platformio-debug.diagnostics.showLog', this.showDiagnosticsLog.bind(this)),
             vscode.commands.registerCommand('platformio-debug.diagnostics.exportLog', this.exportDiagnosticsLog.bind(this)),
             vscode.commands.registerCommand('platformio-debug.diagnostics.clearLog', this.clearDiagnosticsLog.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.reloadSVD', this.reloadSVD.bind(this)),
 
             vscode.debug.onDidReceiveDebugSessionCustomEvent(this.receivedCustomEvent.bind(this)),
             vscode.debug.onDidStartDebugSession(this.debugSessionStarted.bind(this)),
@@ -272,6 +276,110 @@ class PlatformIODebugExtension {
             );
     }
 
+    /** Sets the data type for memory interpretation. */
+    private memorySetDataType(): void {
+        const dataTypes = [
+            { label: 'u8 (unsigned 8-bit)', value: MemoryDataType.U8 },
+            { label: 'u16 (unsigned 16-bit)', value: MemoryDataType.U16 },
+            { label: 'u32 (unsigned 32-bit)', value: MemoryDataType.U32 },
+            { label: 'u64 (unsigned 64-bit)', value: MemoryDataType.U64 },
+            { label: 'i8 (signed 8-bit)', value: MemoryDataType.I8 },
+            { label: 'i16 (signed 16-bit)', value: MemoryDataType.I16 },
+            { label: 'i32 (signed 32-bit)', value: MemoryDataType.I32 },
+            { label: 'i64 (signed 64-bit)', value: MemoryDataType.I64 },
+            { label: 'float (32-bit float)', value: MemoryDataType.Float },
+            { label: 'double (64-bit double)', value: MemoryDataType.Double }
+        ];
+
+        vscode.window.showQuickPick(dataTypes.map(dt => dt.label)).then(selected => {
+            if (selected) {
+                const dataType = dataTypes.find(dt => dt.label === selected)?.value;
+                if (dataType) {
+                    this.memoryContentProvider.setDataType(dataType);
+                    // Refresh all open memory documents
+                    vscode.workspace.textDocuments.forEach(doc => {
+                        if (doc.fileName.endsWith('.dbgmem')) {
+                            this.memoryContentProvider.update(doc);
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    /** Toggles endianness for memory interpretation. */
+    private memoryToggleEndianness(): void {
+        this.memoryContentProvider.toggleEndianness();
+        const endianness = this.memoryContentProvider.getEndianness();
+        vscode.window.showInformationMessage(`Memory view endianness: ${endianness}`);
+
+        // Refresh all open memory documents
+        vscode.workspace.textDocuments.forEach(doc => {
+            if (doc.fileName.endsWith('.dbgmem')) {
+                this.memoryContentProvider.update(doc);
+            }
+        });
+    }
+
+    /** Writes a byte to memory at the given address. */
+    private async memoryWriteByte(args: { address: number; value: number }): Promise<void> {
+        if (!this.isPIODebugSession()) {
+            vscode.window.showErrorMessage('No debugging session available');
+            return;
+        }
+
+        if (!args || typeof args.address !== 'number' || typeof args.value !== 'number') {
+            // Interactive mode - prompt for address and value
+            const addressInput = await vscode.window.showInputBox({
+                prompt: 'Memory address to write (hex with 0x prefix or decimal)',
+                validateInput: (value) => {
+                    if (/^0x[0-9a-f]+$/i.test(value) || /^[0-9]+$/i.test(value)) {
+                        return null;
+                    }
+                    return 'Invalid address format';
+                }
+            });
+
+            if (!addressInput) return;
+
+            const valueInput = await vscode.window.showInputBox({
+                prompt: 'Value to write (0x00 - 0xFF)',
+                validateInput: (value) => {
+                    if (/^0x[0-9a-f]{1,2}$/i.test(value)) {
+                        return null;
+                    }
+                    return 'Invalid hex byte format (use 0x00 - 0xFF)';
+                }
+            });
+
+            if (!valueInput) return;
+
+            const address = addressInput.startsWith('0x')
+                ? parseInt(addressInput.substring(2), 16)
+                : parseInt(addressInput, 10);
+            const value = parseInt(valueInput.substring(2), 16);
+
+            const success = await this.memoryContentProvider.writeByte(address, value);
+            if (success) {
+                vscode.window.showInformationMessage(`Wrote 0x${value.toString(16).padStart(2, '0').toUpperCase()} to ${addressInput}`);
+                // Refresh open memory views
+                vscode.workspace.textDocuments.forEach(doc => {
+                    if (doc.fileName.endsWith('.dbgmem')) {
+                        this.memoryContentProvider.update(doc);
+                    }
+                });
+            }
+        } else {
+            // Direct call with args
+            const success = await this.memoryContentProvider.writeByte(args.address, args.value);
+            if (success) {
+                vscode.window.showInformationMessage(
+                    `Wrote 0x${args.value.toString(16).padStart(2, '0').toUpperCase()} to 0x${args.address.toString(16).toUpperCase()}`
+                );
+            }
+        }
+    }
+
     /** Updates a peripheral node and refreshes. */
     private peripheralsUpdateNode(node: any): void {
         node.node.performUpdate().then(
@@ -469,6 +577,15 @@ class PlatformIODebugExtension {
     private clearDiagnosticsLog(): void {
         this.diagnostics.clearLog();
         this.diagnostics.showInfo('Diagnostic log cleared');
+    }
+
+    /** Reloads the peripheral tree using the supplied SVD file path. */
+    private reloadSVD(svdPath: string): void {
+        if (!svdPath) {
+            return;
+        }
+        this.peripheralProvider.reloadSVD(svdPath);
+        this.diagnostics.showInfo(`Reloaded SVD: ${svdPath}`);
     }
 }
 
