@@ -749,6 +749,11 @@ export class FieldNode extends BaseNode {
         }
 
         const treeNode = this.getOrCreateTreeNode(label, vscode.TreeItemCollapsibleState.None, contextValue);
+        const ACCESS_TYPE_NAMES: { [key: number]: string } = {
+            [AccessType.ReadOnly]: 'Read-Only',
+            [AccessType.ReadWrite]: 'Read-Write',
+            [AccessType.WriteOnly]: 'Write-Only',
+        };
 
         // Build enhanced tooltip with bit-field documentation
         const tooltipParts: string[] = [];
@@ -756,7 +761,7 @@ export class FieldNode extends BaseNode {
             tooltipParts.push(this.description);
         }
         tooltipParts.push(`Bits [${this.offset + this.width - 1}:${this.offset}], width: ${this.width}`);
-        tooltipParts.push(`Access: ${this.accessType}`);
+        tooltipParts.push(`Access: ${ACCESS_TYPE_NAMES[this.accessType] ?? this.accessType}`)
         if (this.enumeration) {
             tooltipParts.push('Values:');
             const sortedKeys = Object.keys(this.enumeration).sort((a, b) => {
