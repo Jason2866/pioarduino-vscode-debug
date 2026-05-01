@@ -130,20 +130,24 @@ export class SymbolTable {
         return this.symbols.filter((sym) => sym.type === SymbolType.Function);
     }
 
-    /** Returns all global object symbols. */
+    /** Returns all global object symbols, excluding LTO-internal symbols. */
     getGlobalVariables(): SymbolInformation[] {
         return this.symbols.filter(
-            (sym) => sym.type === SymbolType.Object && sym.scope === SymbolScope.Global
+            (sym) =>
+                sym.type === SymbolType.Object &&
+                sym.scope === SymbolScope.Global &&
+                !sym.name.includes('.lto_priv.')
         );
     }
 
-    /** Returns file-local object symbols. */
+    /** Returns file-local object symbols, excluding LTO-internal symbols. */
     getStaticVariables(file: string): SymbolInformation[] {
         return this.symbols.filter(
             (sym) =>
                 sym.type === SymbolType.Object &&
                 sym.scope === SymbolScope.Local &&
-                sym.file === file
+                sym.file === file &&
+                !sym.name.includes('.lto_priv.')
         );
     }
 

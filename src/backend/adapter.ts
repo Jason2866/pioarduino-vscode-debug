@@ -382,52 +382,70 @@ export class GDBDebugSession extends DebugSession {
     }
 
     /** Reads CPU registers via MI. */
-    private customReadRegistersRequest(response: any): void {
-        this.miDebugger.sendCommand(`data-list-register-values --thread ${this.currentThreadId} x`).then(
-            (result) => {
-                if (result.resultRecords.resultClass === 'done') {
-                    const registers = result.resultRecords.results[0][1];
-                    response.body = registers.map((reg: any) => {
-                        const obj: any = {};
-                        reg.forEach((pair: any) => {
-                            obj[pair[0]] = pair[1];
-                        });
-                        return obj;
-                    });
+    private async customReadRegistersRequest(response: any): Promise<void> {
+        try {
+            let result: MINode;
+            try {
+                result = await this.miDebugger.sendCommand(
+                    `data-list-register-values --thread ${this.currentThreadId} x`
+                );
+            } catch (threadErr) {
+                if (threadErr.toString().includes('Invalid thread id')) {
+                    result = await this.miDebugger.sendCommand('data-list-register-values x');
                 } else {
-                    response.body = { error: 'Unable to parse response' };
+                    throw threadErr;
                 }
-                this.sendResponse(response);
-            },
-            (err) => {
-                response.body = { error: err };
-                this.sendErrorResponse(response, 115, `Unable to read registers: ${err.toString()}`);
             }
-        );
+            if (result.resultRecords.resultClass === 'done') {
+                const registers = result.resultRecords.results[0][1];
+                response.body = registers.map((reg: any) => {
+                    const obj: any = {};
+                    reg.forEach((pair: any) => {
+                        obj[pair[0]] = pair[1];
+                    });
+                    return obj;
+                });
+            } else {
+                response.body = { error: 'Unable to parse response' };
+            }
+            this.sendResponse(response);
+        } catch (err) {
+            response.body = { error: err };
+            this.sendErrorResponse(response, 115, `Unable to read registers: ${err.toString()}`);
+        }
     }
 
     /** Reads register names via MI. */
-    private customReadRegisterListRequest(response: any): void {
-        this.miDebugger.sendCommand(`data-list-register-names --thread ${this.currentThreadId}`).then(
-            (result) => {
-                if (result.resultRecords.resultClass === 'done') {
-                    let names: string[];
-                    result.resultRecords.results.forEach((entry: any) => {
-                        if (entry[0] === 'register-names') {
-                            names = entry[1];
-                        }
-                    });
-                    response.body = names;
+    private async customReadRegisterListRequest(response: any): Promise<void> {
+        try {
+            let result: MINode;
+            try {
+                result = await this.miDebugger.sendCommand(
+                    `data-list-register-names --thread ${this.currentThreadId}`
+                );
+            } catch (threadErr) {
+                if (threadErr.toString().includes('Invalid thread id')) {
+                    result = await this.miDebugger.sendCommand('data-list-register-names');
                 } else {
-                    response.body = { error: result.resultRecords.results };
+                    throw threadErr;
                 }
-                this.sendResponse(response);
-            },
-            (err) => {
-                response.body = { error: err };
-                this.sendErrorResponse(response, 116, `Unable to read register list: ${err.toString()}`);
             }
-        );
+            if (result.resultRecords.resultClass === 'done') {
+                let names: string[];
+                result.resultRecords.results.forEach((entry: any) => {
+                    if (entry[0] === 'register-names') {
+                        names = entry[1];
+                    }
+                });
+                response.body = names;
+            } else {
+                response.body = { error: result.resultRecords.results };
+            }
+            this.sendResponse(response);
+        } catch (err) {
+            response.body = { error: err };
+            this.sendErrorResponse(response, 116, `Unable to read register list: ${err.toString()}`);
+        }
     }
 
     /** Handles DAP disconnect. */
@@ -1045,8 +1063,12 @@ export class GDBDebugSession extends DebugSession {
         try {
             for (const globalVar of globalVars) {
                 const varName = `var_global_${globalVar.name}`;
-                const varObj = await this.getVarObjByName(globalVar.name, varName);
-                variables.push(varObj.toProtocolVariable());
+                try {
+                    const varObj = await this.getVarObjByName(globalVar.name, varName);
+                    variables.push(varObj.toProtocolVariable());
+                } catch (symErr) {
+                    // Skip symbols GDB cannot create variable objects for (e.g. LTO internals)
+                }
             }
             response.body = { variables };
             this.sendResponse(response);
@@ -1070,8 +1092,12 @@ export class GDBDebugSession extends DebugSession {
 
             for (const staticVar of staticVars) {
                 const varName = `var_static_${fileName}_${staticVar.name}`;
-                const varObj = await this.getVarObjByName(staticVar.name, varName);
-                variables.push(varObj.toProtocolVariable());
+                try {
+                    const varObj = await this.getVarObjByName(staticVar.name, varName);
+                    variables.push(varObj.toProtocolVariable());
+                } catch (symErr) {
+                    // Skip symbols GDB cannot create variable objects for (e.g. LTO internals)
+                }
             }
             response.body = { variables };
             this.sendResponse(response);
