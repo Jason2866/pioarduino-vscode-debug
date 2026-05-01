@@ -381,6 +381,7 @@ src/
 - [x] Create `diagnostics.ts` with error handling framework
 - [x] Implement diagnostic logging panel
 - [x] Add centralized error message system
+- [x] `__tests__/diagnostics/troubleshooting-wizard.test.ts` created
 - [ ] **IDE Extension**: Add diagnostic configuration to `package.json` (pending a linked/verifiable companion IDE change)
 
 ### Phase 2: Memory Editor
@@ -388,14 +389,15 @@ src/
 - [x] Implement editable hex view in `memory_content_provider.ts`
 - [x] Add data type interpretation panel
 - [x] Add endianness toggle
-- [x] **IDE Extension**: Add memory edit commands and configuration to `package.json`
+- [x] `__tests__/backend/adapter-write-memory.test.ts` created
+- [ ] **IDE Extension**: Add memory edit commands and configuration to `package.json` (pending a linked/verifiable companion IDE change)
 
 ### Phase 3: SVD Enhancements
 - [x] Implement SVD file discovery
 - [x] Add peripheral search/filter UI
 - [x] Implement change highlighting
 - [x] Add `<derivedFrom>` support
-- [x] **IDE Extension**: Add peripheral search command to `package.json`
+- [ ] **IDE Extension**: Add peripheral search command to `package.json` (pending a linked/verifiable companion IDE change)
 
 ### Phase 4: RTOS Support
 - [x] Create RTOS detection mechanism

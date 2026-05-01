@@ -245,6 +245,83 @@ export class RTOSDetector {
     }
 }
 
+// ---------------------------------------------------------------------------
+// FreeRTOS list-walking helpers
+// ---------------------------------------------------------------------------
+
+/** Reads a FreeRTOS TCB by its numeric address and returns an RTOSThread. */
+async function readFreeRTOSTCBByAddress(
+    reader: RTOSExpressionReader,
+    tcbPtr: number,
+    gdbThreadId: number | undefined,
+    isCurrent: boolean,
+    source: RTOSType
+): Promise<RTOSThread> {
+    const hex = `0x${tcbPtr.toString(16)}`;
+    const stackPointer = parseNumericValue(
+        await evaluateValue(reader, `((TCB_t*)${hex})->pxTopOfStack`)
+    );
+    const stackBase = parseNumericValue(await evaluateValue(reader, `((TCB_t*)${hex})->pxStack`));
+    const stackEnd = parseNumericValue(await evaluateValue(reader, `((TCB_t*)${hex})->pxEndOfStack`));
+    const priority = parseNumericValue(await evaluateValue(reader, `((TCB_t*)${hex})->uxPriority`));
+    const stateValue = await evaluateValue(reader, `((TCB_t*)${hex})->eCurrentState`);
+    const name =
+        parseThreadName(await evaluateValue(reader, `((TCB_t*)${hex})->pcTaskName`)) ||
+        `FreeRTOS Task 0x${tcbPtr.toString(16)}`;
+
+    return {
+        id: gdbThreadId ?? tcbPtr,
+        gdbThreadId,
+        isCurrent,
+        name,
+        priority,
+        stackPointer,
+        stackInfo: calculateStackInfo(stackBase, stackEnd, stackPointer),
+        state: mapFreeRTOSState(stateValue, isCurrent),
+        source,
+    };
+}
+
+/**
+ * Walks a FreeRTOS List_t (suspended / delayed task list) and appends any
+ * new TCBs found to `threads`.
+ */
+async function walkFreeRTOSStateList(
+    reader: RTOSExpressionReader,
+    listName: string,
+    visitedTCBPtrs: Set<number>,
+    threads: RTOSThread[],
+    maxTasks: number,
+    source: RTOSType
+): Promise<void> {
+    const itemCount = parseNumericValue(
+        await evaluateValue(reader, `${listName}.uxNumberOfItems`)
+    );
+    if (!itemCount) {
+        return;
+    }
+
+    let itemPtr = parseNumericValue(
+        await evaluateValue(reader, `${listName}.xListEnd.pxNext`)
+    );
+
+    for (let i = 0; i < itemCount && itemPtr && threads.length < maxTasks; i++) {
+        const hex = `0x${itemPtr.toString(16)}`;
+        const tcbPtr = parseNumericValue(
+            await evaluateValue(reader, `((ListItem_t*)${hex})->pvOwner`)
+        );
+        if (tcbPtr && !visitedTCBPtrs.has(tcbPtr)) {
+            visitedTCBPtrs.add(tcbPtr);
+            threads.push(
+                await readFreeRTOSTCBByAddress(reader, tcbPtr, undefined, false, source)
+            );
+        }
+        itemPtr = parseNumericValue(
+            await evaluateValue(reader, `((ListItem_t*)${hex})->pxNext`)
+        );
+    }
+}
+
 export class FreeRTOSThreadParser implements RTOSThreadParser {
     readonly type = RTOSType.FreeRTOS;
 
@@ -254,31 +331,91 @@ export class FreeRTOSThreadParser implements RTOSThreadParser {
             return [];
         }
 
-        const gdbThreadId = defaultThreadId(options);
-        const stackPointer = parseNumericValue(
+        const gdbCurrentThreadId = defaultThreadId(options);
+
+        // Always build the current-task entry via the well-known named expression so the
+        // existing GDB symbol path continues to work on minimal targets.
+        const currentStackPointer = parseNumericValue(
             await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->pxTopOfStack')
         );
-        const stackBase = parseNumericValue(await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->pxStack'));
-        const stackEnd = parseNumericValue(await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->pxEndOfStack'));
-        const priority = parseNumericValue(await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->uxPriority'));
-        const stateValue = await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->eCurrentState');
-        const name =
-            parseThreadName(await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->pcTaskName')) ||
-            `FreeRTOS Task ${gdbThreadId}`;
+        const currentThread: RTOSThread = {
+            id: gdbCurrentThreadId,
+            gdbThreadId: gdbCurrentThreadId,
+            isCurrent: true,
+            name:
+                parseThreadName(await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->pcTaskName')) ||
+                `FreeRTOS Task ${gdbCurrentThreadId}`,
+            priority: parseNumericValue(await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->uxPriority')),
+            stackPointer: currentStackPointer,
+            stackInfo: calculateStackInfo(
+                parseNumericValue(await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->pxStack')),
+                parseNumericValue(await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->pxEndOfStack')),
+                currentStackPointer
+            ),
+            state: mapFreeRTOSState(
+                await evaluateValue(reader, '((TCB_t *)pxCurrentTCB)->eCurrentState'),
+                true
+            ),
+            source: this.type,
+        };
 
-        return [
-            {
-                id: gdbThreadId,
-                gdbThreadId,
-                isCurrent: true,
-                name,
-                priority,
-                stackPointer,
-                stackInfo: calculateStackInfo(stackBase, stackEnd, stackPointer),
-                state: mapFreeRTOSState(stateValue, true),
-                source: this.type,
-            },
-        ];
+        const threads: RTOSThread[] = [currentThread];
+        const visitedTCBPtrs = new Set<number>([currentPtr]);
+
+        // Try to enumerate all tasks by walking the scheduler lists.
+        // Falls back gracefully when expressions are unavailable.
+        const totalTasks =
+            parseNumericValue(await evaluateValue(reader, 'uxCurrentNumberOfTasks')) ?? 0;
+        if (totalTasks <= 1) {
+            return threads;
+        }
+
+        // Walk ready task lists (one circular list per priority level).
+        for (let prio = 0; prio < 32 && threads.length < totalTasks; prio++) {
+            const itemCount = parseNumericValue(
+                await evaluateValue(reader, `pxReadyTasksLists[${prio}].uxNumberOfItems`)
+            );
+            if (!itemCount) {
+                continue;
+            }
+
+            let itemPtr = parseNumericValue(
+                await evaluateValue(reader, `pxReadyTasksLists[${prio}].xListEnd.pxNext`)
+            );
+
+            for (let i = 0; i < itemCount && itemPtr; i++) {
+                const hex = `0x${itemPtr.toString(16)}`;
+                const tcbPtr = parseNumericValue(
+                    await evaluateValue(reader, `((ListItem_t*)${hex})->pvOwner`)
+                );
+                if (tcbPtr && !visitedTCBPtrs.has(tcbPtr)) {
+                    visitedTCBPtrs.add(tcbPtr);
+                    threads.push(
+                        await readFreeRTOSTCBByAddress(reader, tcbPtr, undefined, false, this.type)
+                    );
+                }
+                itemPtr = parseNumericValue(
+                    await evaluateValue(reader, `((ListItem_t*)${hex})->pxNext`)
+                );
+            }
+        }
+
+        // Walk suspended and delayed task lists.
+        for (const listName of ['xSuspendedTaskList', 'xDelayedTaskList1', 'xDelayedTaskList2']) {
+            if (threads.length >= totalTasks) {
+                break;
+            }
+            await walkFreeRTOSStateList(
+                reader,
+                listName,
+                visitedTCBPtrs,
+                threads,
+                totalTasks,
+                this.type
+            );
+        }
+
+        return threads;
     }
 }
 
@@ -291,7 +428,65 @@ export class ThreadXThreadParser implements RTOSThreadParser {
             return [];
         }
 
-        const gdbThreadId = defaultThreadId(options);
+        const gdbCurrentThreadId = defaultThreadId(options);
+
+        // Try to walk the full created-thread circular linked list.
+        const listHeadPtr = parseNumericValue(await evaluateValue(reader, '_tx_thread_created_ptr'));
+        if (listHeadPtr) {
+            const threads: RTOSThread[] = [];
+            const visitedPtrs = new Set<number>();
+            let threadPtr: number | undefined = listHeadPtr;
+            let safety = 0;
+
+            while (threadPtr && !visitedPtrs.has(threadPtr) && safety++ < 64) {
+                visitedPtrs.add(threadPtr);
+                const hex = `0x${threadPtr.toString(16)}`;
+                const isCurrent = threadPtr === currentPtr;
+                // Use the symbolic pointer expression for the current thread to remain
+                // compatible with targets that only expose _tx_thread_current_ptr.
+                const expr = isCurrent ? '_tx_thread_current_ptr' : `(TX_THREAD*)${hex}`;
+
+                const stackPointer = parseNumericValue(
+                    await evaluateValue(reader, `${expr}->tx_thread_stack_ptr`)
+                );
+                const stackBase = parseNumericValue(
+                    await evaluateValue(reader, `${expr}->tx_thread_stack_start`)
+                );
+                const stackEnd = parseNumericValue(
+                    await evaluateValue(reader, `${expr}->tx_thread_stack_end`)
+                );
+                const priority = parseNumericValue(
+                    await evaluateValue(reader, `${expr}->tx_thread_priority`)
+                );
+                const stateValue = await evaluateValue(reader, `${expr}->tx_thread_state`);
+                const name =
+                    parseThreadName(await evaluateValue(reader, `${expr}->tx_thread_name`)) ||
+                    `ThreadX Thread ${isCurrent ? gdbCurrentThreadId : threadPtr}`;
+
+                threads.push({
+                    id: isCurrent ? gdbCurrentThreadId : threadPtr,
+                    gdbThreadId: isCurrent ? gdbCurrentThreadId : undefined,
+                    isCurrent,
+                    name,
+                    priority,
+                    stackPointer,
+                    stackInfo: calculateStackInfo(stackBase, stackEnd, stackPointer),
+                    state: mapThreadXState(stateValue, isCurrent),
+                    source: this.type,
+                });
+
+                // tx_thread_created_next forms a circular list; the visited-set detects wrap-around.
+                threadPtr = parseNumericValue(
+                    await evaluateValue(reader, `((TX_THREAD*)${hex})->tx_thread_created_next`)
+                );
+            }
+
+            if (threads.length > 0) {
+                return threads;
+            }
+        }
+
+        // Fallback: return only the current thread via the existing named expressions.
         const stackPointer = parseNumericValue(
             await evaluateValue(reader, '_tx_thread_current_ptr->tx_thread_stack_ptr')
         );
@@ -307,12 +502,12 @@ export class ThreadXThreadParser implements RTOSThreadParser {
         const stateValue = await evaluateValue(reader, '_tx_thread_current_ptr->tx_thread_state');
         const name =
             parseThreadName(await evaluateValue(reader, '_tx_thread_current_ptr->tx_thread_name')) ||
-            `ThreadX Thread ${gdbThreadId}`;
+            `ThreadX Thread ${gdbCurrentThreadId}`;
 
         return [
             {
-                id: gdbThreadId,
-                gdbThreadId,
+                id: gdbCurrentThreadId,
+                gdbThreadId: gdbCurrentThreadId,
                 isCurrent: true,
                 name,
                 priority,
@@ -334,7 +529,56 @@ export class ZephyrThreadParser implements RTOSThreadParser {
             return [];
         }
 
-        const gdbThreadId = defaultThreadId(options);
+        const gdbCurrentThreadId = defaultThreadId(options);
+
+        // Try to walk the full NULL-terminated thread list via _kernel.threads.
+        const listHeadPtr = parseNumericValue(await evaluateValue(reader, '_kernel.threads'));
+        if (listHeadPtr) {
+            const threads: RTOSThread[] = [];
+            const visitedPtrs = new Set<number>();
+            let threadPtr: number | undefined = listHeadPtr;
+            let safety = 0;
+
+            while (threadPtr && !visitedPtrs.has(threadPtr) && safety++ < 64) {
+                visitedPtrs.add(threadPtr);
+                const hex = `0x${threadPtr.toString(16)}`;
+                const isCurrent = threadPtr === currentPtr;
+                // Use the symbolic pointer expression for the current thread for compat.
+                const expr = isCurrent
+                    ? '(struct k_thread *)_kernel.current'
+                    : `(struct k_thread*)${hex}`;
+
+                const stackPointer = parseNumericValue(
+                    await evaluateValue(reader, `${expr}->callee_saved.psp`)
+                );
+                const priority = parseNumericValue(await evaluateValue(reader, `${expr}->base.prio`));
+                const stateValue = await evaluateValue(reader, `${expr}->base.thread_state`);
+                const name =
+                    parseThreadName(await evaluateValue(reader, `${expr}->name`)) ||
+                    `Zephyr Thread ${isCurrent ? gdbCurrentThreadId : threadPtr}`;
+
+                threads.push({
+                    id: isCurrent ? gdbCurrentThreadId : threadPtr,
+                    gdbThreadId: isCurrent ? gdbCurrentThreadId : undefined,
+                    isCurrent,
+                    name,
+                    priority,
+                    stackPointer,
+                    state: mapZephyrState(stateValue, isCurrent),
+                    source: this.type,
+                });
+
+                threadPtr = parseNumericValue(
+                    await evaluateValue(reader, `((struct k_thread*)${hex})->next_thread`)
+                );
+            }
+
+            if (threads.length > 0) {
+                return threads;
+            }
+        }
+
+        // Fallback: return only the current thread via the existing named expressions.
         const stackPointer = parseNumericValue(
             await evaluateValue(reader, '((struct k_thread *)_kernel.current)->callee_saved.psp')
         );
@@ -346,13 +590,14 @@ export class ZephyrThreadParser implements RTOSThreadParser {
             '((struct k_thread *)_kernel.current)->base.thread_state'
         );
         const name =
-            parseThreadName(await evaluateValue(reader, '((struct k_thread *)_kernel.current)->name')) ||
-            `Zephyr Thread ${gdbThreadId}`;
+            parseThreadName(
+                await evaluateValue(reader, '((struct k_thread *)_kernel.current)->name')
+            ) || `Zephyr Thread ${gdbCurrentThreadId}`;
 
         return [
             {
-                id: gdbThreadId,
-                gdbThreadId,
+                id: gdbCurrentThreadId,
+                gdbThreadId: gdbCurrentThreadId,
                 isCurrent: true,
                 name,
                 priority,

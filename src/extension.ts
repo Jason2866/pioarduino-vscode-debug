@@ -593,12 +593,26 @@ class PlatformIODebugExtension {
     }
 
     /** Reloads the peripheral tree using the supplied SVD file path. */
-    private reloadSVD(svdPath: string): void {
-        if (!svdPath) {
-            return;
+    private async reloadSVD(svdPath: string): Promise<void> {
+        let resolvedPath = svdPath;
+        if (!resolvedPath) {
+            const uris = await vscode.window.showOpenDialog({
+                canSelectFiles: true,
+                canSelectFolders: false,
+                canSelectMany: false,
+                filters: {
+                    'SVD Files': ['svd', 'SVD'],
+                    'All Files': ['*'],
+                },
+                openLabel: 'Select SVD File',
+            });
+            if (!uris || uris.length === 0) {
+                return;
+            }
+            resolvedPath = uris[0].fsPath;
         }
-        this.peripheralProvider.reloadSVD(svdPath);
-        this.diagnostics.showInfo(`Reloaded SVD: ${svdPath}`);
+        this.peripheralProvider.reloadSVD(resolvedPath);
+        this.diagnostics.showInfo(`Reloaded SVD: ${resolvedPath}`);
     }
 }
 

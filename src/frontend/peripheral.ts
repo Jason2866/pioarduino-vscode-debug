@@ -748,7 +748,30 @@ export class FieldNode extends BaseNode {
             contextValue = 'field-ro';
         }
 
-        return this.getOrCreateTreeNode(label, vscode.TreeItemCollapsibleState.None, contextValue);
+        const treeNode = this.getOrCreateTreeNode(label, vscode.TreeItemCollapsibleState.None, contextValue);
+
+        // Build enhanced tooltip with bit-field documentation
+        const tooltipParts: string[] = [];
+        if (this.description) {
+            tooltipParts.push(this.description);
+        }
+        tooltipParts.push(`Bits [${this.offset + this.width - 1}:${this.offset}], width: ${this.width}`);
+        tooltipParts.push(`Access: ${this.accessType}`);
+        if (this.enumeration) {
+            tooltipParts.push('Values:');
+            const sortedKeys = Object.keys(this.enumeration).sort((a, b) => {
+                const va = BigInt(a);
+                const vb = BigInt(b);
+                return va < vb ? -1 : va > vb ? 1 : 0;
+            });
+            for (const key of sortedKeys) {
+                const e = this.enumeration[key] as EnumerationValue;
+                tooltipParts.push(`  ${e.name} = ${key}: ${e.description}`);
+            }
+        }
+        treeNode.tooltip = tooltipParts.join('\n');
+
+        return treeNode;
     }
 
     performUpdate(): Promise<boolean> {

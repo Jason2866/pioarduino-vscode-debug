@@ -45,9 +45,15 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
     private dataType: MemoryDataType = MemoryDataType.U8;
     private endianness: Endianness = Endianness.Little;
 
+    // ASCII column toggle
+    private showAscii: boolean = true;
+
     // New: Track memory contents for data type display
     private currentBytes: number[] = [];
     private currentAddress: number = 0;
+
+    // Memory diff tracking
+    private previousBytes: number[] = [];
 
     /** Sets the data type for interpretation. */
     setDataType(type: MemoryDataType): void {
@@ -76,6 +82,40 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
             : Endianness.Little;
     }
 
+    /** Sets whether to show the ASCII column. */
+    setShowAscii(show: boolean): void {
+        this.showAscii = show;
+    }
+
+    /** Gets whether the ASCII column is shown. */
+    getShowAscii(): boolean {
+        return this.showAscii;
+    }
+
+    /** Toggles the ASCII column visibility. */
+    toggleAsciiView(): void {
+        this.showAscii = !this.showAscii;
+    }
+
+    /** Returns byte offsets that differ between the last two reads. */
+    getChangedOffsets(): number[] {
+        if (this.previousBytes.length === 0 || this.previousBytes.length !== this.currentBytes.length) {
+            return [];
+        }
+        const changed: number[] = [];
+        for (let i = 0; i < this.currentBytes.length; i++) {
+            if (this.currentBytes[i] !== this.previousBytes[i]) {
+                changed.push(i);
+            }
+        }
+        return changed;
+    }
+
+    /** Returns the previous bytes snapshot (from the last read). */
+    getPreviousBytes(): number[] {
+        return this.previousBytes.slice();
+    }
+
     /** Returns hex+ASCII memory dump for the URI. */
     provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
         return new Promise((resolve, reject) => {
@@ -96,11 +136,15 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                         const bytes: number[] = result.bytes;
                         this.currentBytes = bytes;
 
+                        // Compute diff against previous read before updating snapshot
+                        const changedOffsets = new Set(this.getChangedOffsets());
+
                         let output = '';
 
                         // Header with data type info
+                        const asciiHeader = this.showAscii ? '  | ASCII' : '';
                         output += `  Data Type: ${this.dataType}, Endianness: ${this.endianness}\n`;
-                        output += `  Offset: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F  | ASCII\n`;
+                        output += `  Offset: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F${asciiHeader}\n`;
 
                         let rowAddress = address - (address % 16);
                         const offset = address - rowAddress;
@@ -121,7 +165,9 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                                     : String.fromCharCode(bytes[i]);
 
                             if ((address + i) % 16 === 15 && i < length - 1) {
-                                output += ' |' + asciiStr;
+                                if (this.showAscii) {
+                                    output += ' |' + asciiStr;
+                                }
                                 asciiStr = '';
                                 output += '\n';
                                 rowAddress += 16;
@@ -133,7 +179,9 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                         for (let i = 0; i < remaining; i++) {
                             output += '   ';
                         }
-                        output += ' |' + asciiStr;
+                        if (this.showAscii) {
+                            output += ' |' + asciiStr;
+                        }
                         output += '\n';
 
                         // Add data type interpretation section
@@ -142,6 +190,14 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                             output += '\n  Data Type Interpretation:\n';
                             output += typeInfo;
                         }
+
+                        // Add memory diff summary when bytes changed since last read
+                        if (changedOffsets.size > 0) {
+                            output += `\n  Diff: ${changedOffsets.size} byte(s) changed since last read\n`;
+                        }
+
+                        // Update snapshot for next diff computation
+                        this.previousBytes = bytes.slice();
 
                         resolve(output);
                     },

@@ -135,14 +135,17 @@ describe('MemoryContentProvider', () => {
         })
 
         test('should map byte offset to ASCII position', () => {
+            const firstAsciiPos = (provider as any).firstAsciiPos as number
+
             // First row, first byte (ASCII column)
             const pos1 = provider.getPosition(0, true)
             expect(pos1.line).toBe(2)
-            // ASCII position starts after hex columns
+            expect(pos1.character).toBe(firstAsciiPos)
 
             // Second row, first byte in ASCII
             const pos2 = provider.getPosition(16, true)
             expect(pos2.line).toBe(3)
+            expect(pos2.character).toBe(firstAsciiPos)
         })
 
         test('should return undefined for invalid positions', () => {
