@@ -387,6 +387,8 @@ src/
 ### Phase 2: Memory Editor
 - [x] Add `write-memory` support in `adapter.ts`
 - [x] Implement editable hex view in `memory_content_provider.ts`
+- [x] Add ASCII/string view toggle in `memory_content_provider.ts`
+- [x] Add memory diff/highlighting in `memory_content_provider.ts`
 - [x] Add data type interpretation panel
 - [x] Add endianness toggle
 - [x] `__tests__/backend/adapter-write-memory.test.ts` created
@@ -397,6 +399,7 @@ src/
 - [x] Add peripheral search/filter UI
 - [x] Implement change highlighting
 - [x] Add `<derivedFrom>` support
+- [x] Add peripheral register bit-field tooltip documentation
 - [x] **IDE Extension**: Add peripheral search command to `package.json`
 
 ### Phase 4: RTOS Support
