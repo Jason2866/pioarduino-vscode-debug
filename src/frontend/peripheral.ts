@@ -1,4 +1,6 @@
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { XMLParser } from 'fast-xml-parser';
 import { NumberFormat } from '../common';
@@ -52,6 +54,7 @@ export class BaseNode {
     public format: NumberFormat = NumberFormat.Auto;
     public description: string;
     public accessType?: AccessType;
+    private cachedTreeNode?: TreeNode;
 
     constructor(public recordType: RecordType) {}
 
@@ -73,6 +76,31 @@ export class BaseNode {
 
     getTreeNode(): TreeNode {
         return null;
+    }
+
+    protected getOrCreateTreeNode(
+        label: string,
+        collapsibleState: vscode.TreeItemCollapsibleState,
+        contextValue: string
+    ): TreeNode {
+        if (!this.cachedTreeNode) {
+            this.cachedTreeNode = new TreeNode(label, collapsibleState, contextValue, this);
+        }
+
+        this.cachedTreeNode.label = label;
+        this.cachedTreeNode.collapsibleState = collapsibleState;
+        this.cachedTreeNode.contextValue = contextValue;
+        this.cachedTreeNode.node = this;
+        this.cachedTreeNode.command = {
+            command: 'platformio-debug.peripherals.selectedNode',
+            arguments: [this],
+            title: 'Selected Node',
+        };
+        this.cachedTreeNode.tooltip = this.description || label;
+        this.cachedTreeNode.iconPath = undefined;
+        this.cachedTreeNode.description = undefined;
+
+        return this.cachedTreeNode;
     }
 
     getCopyValue(): string | null {
@@ -175,11 +203,10 @@ export class PeripheralNode extends BaseNode {
 
     getTreeNode(): TreeNode {
         const label = this.name + '  [' + hexFormat(this.baseAddress) + ']';
-        return new TreeNode(
+        return this.getOrCreateTreeNode(
             label,
             this.expanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
-            'peripheral',
-            this
+            'peripheral'
         );
     }
 
@@ -292,11 +319,10 @@ export class ClusterNode extends BaseNode {
 
     getTreeNode(): TreeNode {
         const label = `${this.name} [${hexFormat(this.offset, 0)}]`;
-        return new TreeNode(
+        return this.getOrCreateTreeNode(
             label,
             this.expanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
-            'cluster',
-            this
+            'cluster'
         );
     }
 
@@ -367,6 +393,8 @@ export class RegisterNode extends BaseNode {
     public size: number;
     public resetValue: bigint;
     public currentValue: bigint;
+    public previousValue: bigint;
+    public valueChanged: boolean = false;
     public hexLength: number;
     public maxValue: bigint;
     public binaryRegex: RegExp;
@@ -382,6 +410,7 @@ export class RegisterNode extends BaseNode {
         this.size = options.size || parent.size;
         this.resetValue = options.resetValue !== undefined ? BigInt(options.resetValue) : (parent.resetValue ?? 0n);
         this.currentValue = this.resetValue;
+        this.previousValue = this.resetValue;
         this.hexLength = Math.ceil(this.size / 4);
         this.maxValue = 1n << BigInt(this.size);
         this.binaryRegex = new RegExp(`^0b[01]{1,${this.size}}$`, 'i');
@@ -443,7 +472,28 @@ export class RegisterNode extends BaseNode {
                     : vscode.TreeItemCollapsibleState.Collapsed
                 : vscode.TreeItemCollapsibleState.None;
 
-        return new TreeNode(label, collapsible, contextValue, this);
+        const treeNode = this.getOrCreateTreeNode(label, collapsible, contextValue);
+
+        // Highlight registers whose value differs from the documented reset value.
+        // Recently changed registers get an additional indicator.
+        if (this.currentValue !== this.resetValue) {
+            const color = this.valueChanged
+                ? new vscode.ThemeColor('charts.orange')
+                : new vscode.ThemeColor('charts.yellow');
+            treeNode.iconPath = new vscode.ThemeIcon('circle-filled', color);
+            const tooltipParts: string[] = [];
+            if (this.description) {
+                tooltipParts.push(this.description);
+            }
+            tooltipParts.push(`Reset: ${hexFormat(this.resetValue, this.hexLength)}`);
+            tooltipParts.push(`Current: ${hexFormat(this.currentValue, this.hexLength)}`);
+            if (this.valueChanged) {
+                tooltipParts.push(`Previous: ${hexFormat(this.previousValue, this.hexLength)}`);
+            }
+            treeNode.tooltip = tooltipParts.join('\n');
+        }
+
+        return treeNode;
     }
 
     getChildren(): BaseNode[] {
@@ -549,6 +599,7 @@ export class RegisterNode extends BaseNode {
         }
         const buffer = Buffer.from(bytes);
 
+        const prior = this.currentValue;
         switch (byteCount) {
             case 1:
                 this.currentValue = BigInt(buffer.readUInt8(0));
@@ -567,6 +618,10 @@ export class RegisterNode extends BaseNode {
                     `Register ${this.name} has invalid size: ${this.size}. Should be 8, 16, 32 or 64.`
                 );
         }
+
+        // Track value changes between successive reads to drive change highlighting.
+        this.valueChanged = this.currentValue !== prior;
+        this.previousValue = prior;
 
         this.children.forEach((child) => child.update());
         return Promise.resolve(true);
@@ -693,7 +748,35 @@ export class FieldNode extends BaseNode {
             contextValue = 'field-ro';
         }
 
-        return new TreeNode(label, vscode.TreeItemCollapsibleState.None, contextValue, this);
+        const treeNode = this.getOrCreateTreeNode(label, vscode.TreeItemCollapsibleState.None, contextValue);
+        const ACCESS_TYPE_NAMES: { [key: number]: string } = {
+            [AccessType.ReadOnly]: 'Read-Only',
+            [AccessType.ReadWrite]: 'Read-Write',
+            [AccessType.WriteOnly]: 'Write-Only',
+        };
+
+        // Build enhanced tooltip with bit-field documentation
+        const tooltipParts: string[] = [];
+        if (this.description) {
+            tooltipParts.push(this.description);
+        }
+        tooltipParts.push(`Bits [${this.offset + this.width - 1}:${this.offset}], width: ${this.width}`);
+        tooltipParts.push(`Access: ${ACCESS_TYPE_NAMES[this.accessType] ?? this.accessType}`)
+        if (this.enumeration) {
+            tooltipParts.push('Values:');
+            const sortedKeys = Object.keys(this.enumeration).sort((a, b) => {
+                const va = BigInt(a);
+                const vb = BigInt(b);
+                return va < vb ? -1 : va > vb ? 1 : 0;
+            });
+            for (const key of sortedKeys) {
+                const e = this.enumeration[key] as EnumerationValue;
+                tooltipParts.push(`  ${e.name} = ${key}: ${e.description}`);
+            }
+        }
+        treeNode.tooltip = tooltipParts.join('\n');
+
+        return treeNode;
     }
 
     performUpdate(): Promise<boolean> {
@@ -772,6 +855,22 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
     private viewExpanded: boolean = false;
     private svdPath: string;
     private initialSettings: any[];
+    private treeView: vscode.TreeView<TreeNode> | undefined;
+
+    /** Stores a reference to the TreeView so search can reveal entries. */
+    setTreeView(treeView: vscode.TreeView<TreeNode>): void {
+        this.treeView = treeView;
+    }
+
+    /** Returns the currently configured SVD path (if any). */
+    getSVDPath(): string | undefined {
+        return this.svdPath;
+    }
+
+    /** Returns the loaded peripheral nodes (used for testing/search). */
+    getPeripherals(): PeripheralNode[] {
+        return this.peripherials;
+    }
 
     /** Refreshes the tree view. */
     refresh(): void {
@@ -1098,6 +1197,158 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         return peripheral;
     }
 
+    /**
+     * Resolves transitive `<peripheral derivedFrom="...">` chains.
+     * Each derived peripheral inherits the base's properties (including
+     * registers/clusters) while keeping its own overrides such as name and
+     * baseAddress.
+     */
+    private _resolvePeripheralDerivedFrom(peripheralMap: { [name: string]: any }): void {
+        const resolved: { [name: string]: boolean } = {};
+        const resolve = (name: string, visiting: Set<string>): void => {
+            if (resolved[name]) {
+                return;
+            }
+            if (visiting.has(name)) {
+                throw new Error(`Circular derivedFrom reference detected at peripheral ${name}`);
+            }
+            const periph = peripheralMap[name];
+            const baseName: string | undefined = periph?.['@_derivedFrom'];
+            if (!baseName || !peripheralMap[baseName]) {
+                resolved[name] = true;
+                return;
+            }
+            visiting.add(name);
+            resolve(baseName, visiting);
+            visiting.delete(name);
+            peripheralMap[name] = this._mergePeripheralDefinitions(peripheralMap[baseName], periph);
+            // Drop the marker so we don't re-process if called again.
+            delete peripheralMap[name]['@_derivedFrom'];
+            resolved[name] = true;
+        };
+
+        for (const name in peripheralMap) {
+            resolve(name, new Set<string>());
+        }
+    }
+
+    /**
+     * Deep-merges a derived peripheral on top of its base.
+     * Scalar properties are overridden by the derived value.
+     * The `registers` container is merged by name so that sibling registers/clusters
+     * from the base are preserved when the derived peripheral only overrides some.
+     */
+    private _mergePeripheralDefinitions(base: any, derived: any): any {
+        const result: any = { ...base };
+        for (const key of Object.keys(derived)) {
+            if (key === 'registers' && base[key] != null && derived[key] != null) {
+                result[key] = this._mergeRegistersContainer(base[key], derived[key]);
+            } else {
+                result[key] = derived[key];
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Merges two SVD `<registers>` container objects by combining their
+     * `register` and `cluster` arrays, keyed by name.  Derived entries override
+     * base entries with the same name; unique base entries are preserved.
+     */
+    private _mergeRegistersContainer(base: any, derived: any): any {
+        const merged: any = { ...base };
+        for (const key of ['register', 'cluster'] as const) {
+            if (derived[key] === undefined) {
+                continue;
+            }
+            const baseArr: any[] = ([] as any[]).concat(base[key] ?? []);
+            const derivedArr: any[] = ([] as any[]).concat(derived[key]);
+            const byName = new Map<string, any>(baseArr.map((r) => [r.name, r]));
+            for (const item of derivedArr) {
+                const existing = byName.get(item.name);
+                byName.set(item.name, existing ? { ...existing, ...item } : item);
+            }
+            merged[key] = Array.from(byName.values());
+        }
+        return merged;
+    }
+
+    /**
+     * Resolves register, cluster and field `derivedFrom` references within a
+     * single peripheral. The lookup is by simple name and supports clusters
+     * deriving from clusters and registers deriving from registers.
+     */
+    private _resolveInnerDerivedFrom(periph: any): void {
+        if (!periph?.registers) {
+            return;
+        }
+
+        // In-place merge that mutates the stored object so that array entries
+        // also see the inherited properties.
+        const merge = (map: { [name: string]: any }, name: string, visiting: Set<string>): void => {
+            const node = map[name];
+            const baseName: string | undefined = node?.['@_derivedFrom'];
+            if (!baseName || !map[baseName]) {
+                return;
+            }
+            if (visiting.has(name)) {
+                throw new Error(`Circular derivedFrom reference detected at ${name}`);
+            }
+            visiting.add(name);
+            merge(map, baseName, visiting);
+            visiting.delete(name);
+            const merged = { ...map[baseName], ...node };
+            delete merged['@_derivedFrom'];
+            // Mutate the existing object so array references stay consistent.
+            for (const key of Object.keys(node)) {
+                delete node[key];
+            }
+            Object.assign(node, merged);
+        };
+
+        const resolveArray = (items: any[]): void => {
+            const map: { [name: string]: any } = {};
+            for (const item of items) {
+                if (item?.name) {
+                    map[item.name] = item;
+                }
+            }
+            for (const name in map) {
+                merge(map, name, new Set<string>());
+            }
+        };
+
+        const resolveFields = (registersList: any[]): void => {
+            for (const reg of registersList) {
+                const fields: any[] = reg?.fields?.field;
+                if (Array.isArray(fields)) {
+                    resolveArray(fields);
+                }
+            }
+        };
+
+        const registers: any[] = Array.isArray(periph.registers.register)
+            ? periph.registers.register
+            : [];
+        const clusters: any[] = Array.isArray(periph.registers.cluster)
+            ? periph.registers.cluster
+            : [];
+
+        resolveArray(registers);
+        resolveArray(clusters);
+
+        // Resolve nested registers and fields within clusters.
+        for (const cluster of clusters) {
+            if (Array.isArray(cluster.register)) {
+                resolveArray(cluster.register);
+                resolveFields(cluster.register);
+            }
+        }
+
+        // Resolve fields inside top-level registers.
+        resolveFields(registers);
+    }
+
     /** Reads/parses SVD XML file. */
     _loadSVD(svdPath: string): Promise<boolean> {
         return new Promise((resolve, reject) => {
@@ -1108,6 +1359,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 try {
                     const parser = new XMLParser({
                         ignoreAttributes: false,
+                        parseTagValue: false,
                         isArray: (_name: string, jpath: string) => {
                             const arrayPaths = [
                                 'device.peripherals.peripheral',
@@ -1145,13 +1397,12 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                         peripheralMap[name] = periph;
                     });
 
-                    // Handle derived peripherals
+                    // Handle derived peripherals (including transitive chains)
+                    this._resolvePeripheralDerivedFrom(peripheralMap);
+
+                    // Resolve register/cluster/field derivedFrom within each peripheral
                     for (const name in peripheralMap) {
-                        const periph = peripheralMap[name];
-                        if (periph['@_derivedFrom']) {
-                            const base = peripheralMap[periph['@_derivedFrom']];
-                            peripheralMap[name] = { ...base, ...periph };
-                        }
+                        this._resolveInnerDerivedFrom(peripheralMap[name]);
                     }
 
                     this.peripherials = [];
@@ -1278,6 +1529,118 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         this.loaded = false;
         this.svdPath = svdPath;
         this.initialSettings = savedState;
+    }
+
+    /**
+     * Searches well-known locations for a `.svd` file.
+     * Order:
+     *   1. workspaceRoot/.vscode/*.svd
+     *   2. workspaceRoot/*.svd
+     *   3. ~/.platformio/packages/*\/svd/*.svd (e.g. framework-*, tool-openocd)
+     * If a `deviceName` is provided, candidates whose filename contains the
+     * device name (case-insensitive) are preferred.
+     */
+    public findSVDFile(deviceName?: string): string | undefined {
+        const candidates: string[] = [];
+
+        const collect = (dir: string): void => {
+            try {
+                if (!fs.existsSync(dir)) {
+                    return;
+                }
+                const entries = fs.readdirSync(dir).sort((a, b) => a.localeCompare(b));
+                for (const entry of entries) {
+                    if (entry.toLowerCase().endsWith('.svd')) {
+                        candidates.push(path.join(dir, entry));
+                    }
+                }
+            } catch {
+                // Ignore IO errors during discovery.
+            }
+        };
+
+        const folders = vscode.workspace.workspaceFolders || [];
+        for (const folder of folders) {
+            const root = folder.uri.fsPath;
+            collect(path.join(root, '.vscode'));
+            collect(root);
+        }
+
+        const pioPackages = path.join(os.homedir(), '.platformio', 'packages');
+        try {
+            if (fs.existsSync(pioPackages)) {
+                const pkgs = fs.readdirSync(pioPackages).sort((a, b) => a.localeCompare(b));
+                for (const pkg of pkgs) {
+                    collect(path.join(pioPackages, pkg, 'svd'));
+                }
+            }
+        } catch {
+            // Ignore IO errors during discovery.
+        }
+
+        if (candidates.length === 0) {
+            return undefined;
+        }
+
+        if (deviceName) {
+            const lower = deviceName.toLowerCase();
+            const match = candidates.find((c) =>
+                path.basename(c).toLowerCase().includes(lower)
+            );
+            // When a device name is given but no filename matches, return undefined so
+            // callers can detect the missing device-specific SVD rather than silently
+            // loading the wrong file.
+            return match;
+        }
+
+        return candidates[0];
+    }
+
+    /**
+     * Opens a QuickPick to filter peripherals by name/address/description and
+     * reveals the chosen peripheral in the tree view.
+     */
+    public async search(): Promise<void> {
+        if (this.peripherials.length === 0) {
+            vscode.window.showInformationMessage('No peripherals are currently loaded.');
+            return;
+        }
+
+        const items: vscode.QuickPickItem[] = this.peripherials.map((p) => ({
+            label: p.name,
+            description: hexFormat(p.baseAddress),
+            detail: p.description,
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+            placeHolder: 'Search peripherals by name, address, or description',
+            matchOnDescription: true,
+            matchOnDetail: true,
+        });
+
+        if (!selected) {
+            return;
+        }
+
+        const peripheral = this.peripherials.find((p) => p.name === selected.label);
+        if (!peripheral) {
+            return;
+        }
+
+        const treeNode = peripheral.getTreeNode();
+        peripheral.expanded = true;
+        this.refresh();
+        if (this.treeView) {
+            try {
+                await this.treeView.reveal(treeNode, {
+                    select: true,
+                    focus: true,
+                    expand: true,
+                });
+            } catch {
+                // reveal can fail if the node was just rebuilt; ignore.
+            }
+        }
     }
 
     /** Updates the SVD path and reloads the peripheral tree. */

@@ -150,6 +150,7 @@ export class MI2 extends EventEmitter {
                                     this.debugReadyFired = true;
                                     this.emit('debug-ready');
                                 }, 200);
+                                this.debugReadyTimeout.unref();
                                 this.once('generic-stopped', () => {
                                     if (!this.debugReadyFired) {
                                         clearTimeout(this.debugReadyTimeout);

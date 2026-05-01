@@ -3,9 +3,17 @@ import { parseMI } from '../../src/backend/mi_parse';
 
 describe('Breakpoint Error Handling', () => {
   describe('addBreakPoint null return handling', () => {
+    let mi2: MI2;
+
+    beforeEach(() => {
+      mi2 = new MI2('gdb', []);
+    });
+
+    afterEach(() => {
+      mi2.removeAllListeners();
+    });
+
     test('should return null when breakpoint number parsing fails', async () => {
-      const mi2 = new MI2('gdb', []);
-      
       // Mock sendCommand to return invalid response
       mi2.sendCommand = jest.fn().mockResolvedValue({
         resultRecords: { resultClass: 'done' },
@@ -25,8 +33,6 @@ describe('Breakpoint Error Handling', () => {
     });
 
     test('should return null when GDB returns error', async () => {
-      const mi2 = new MI2('gdb', []);
-      
       // Mock sendCommand to return error response
       mi2.sendCommand = jest.fn().mockResolvedValue({
         resultRecords: { resultClass: 'error' },
@@ -42,8 +48,6 @@ describe('Breakpoint Error Handling', () => {
     });
 
     test('should return breakpoint object when successful', async () => {
-      const mi2 = new MI2('gdb', []);
-      
       // Mock sendCommand to return valid response
       mi2.sendCommand = jest.fn().mockResolvedValue({
         resultRecords: { resultClass: 'done' },
