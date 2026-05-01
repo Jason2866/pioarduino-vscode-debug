@@ -410,7 +410,7 @@ src/
 - [x] **IDE Extension**: Add RTOS configuration to `package.json`
 
 ### Phase 5: Polish & Testing
-- [ ] Integration testing for all features
+- [x] Integration testing for all features (`__tests__/integration/feature-integration.test.ts`)
 - [ ] **IDE Extension**: Test all new commands and configurations
 - [ ] Documentation updates
 - [ ] Bug fixes and edge cases
@@ -592,7 +592,7 @@ New features should not break:
 ### Debug Extension (pioarduino-vscode-debug)
 - [ ] All 4 feature areas have measurable improvements
 - [ ] Test coverage > 80% for new code
-- [ ] No regressions in existing functionality (133 tests passing)
+- [ ] No regressions in existing functionality (353 tests passing)
 - [ ] Documentation updated in README.md
 - [ ] CHANGELOG.md updated with detailed entries
 
