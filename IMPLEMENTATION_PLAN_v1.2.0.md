@@ -266,7 +266,7 @@ export class DiagnosticsManager {
 
 ## pioarduino-vscode-ide Integration Changes
 
-The `pioarduino-vscode-ide` extension (`https://github.com/pioarduino/pioarduino-vscode-ide`) defines the UI layer (commands, views, menus) while this debug extension provides the implementation. The following changes are needed in the IDE extension:
+The `pioarduino-vscode-ide` extension ([`debug_120` branch](https://github.com/Jason2866/pioarduino-vscode-ide/tree/debug_120)) defines the UI layer (commands, views, menus) while this debug extension provides the implementation. The following changes are needed in the IDE extension:
 
 ### package.json Changes Required
 
@@ -345,8 +345,8 @@ The `pioarduino-vscode-ide` extension (`https://github.com/pioarduino/pioarduino
 
 ### File Locations in IDE Extension
 ```
-https://github.com/pioarduino/pioarduino-vscode-ide/
-├── package.json              (modify: add commands, config, views)
+https://github.com/Jason2866/pioarduino-vscode-ide/tree/debug_120
+├── package.json              (modified: commands, config, views, rtos launch property)
 ├── syntaxes/                 (existing: language definitions)
 └── src/                      (if UI logic needed, typically just package.json)
 ```
@@ -382,7 +382,7 @@ src/
 - [x] Implement diagnostic logging panel
 - [x] Add centralized error message system
 - [x] `__tests__/diagnostics/troubleshooting-wizard.test.ts` created
-- [ ] **IDE Extension**: Add diagnostic configuration to `package.json` (pending a linked/verifiable companion IDE change)
+- [x] **IDE Extension**: Add diagnostic configuration to `package.json`
 
 ### Phase 2: Memory Editor
 - [x] Add `write-memory` support in `adapter.ts`
@@ -390,21 +390,21 @@ src/
 - [x] Add data type interpretation panel
 - [x] Add endianness toggle
 - [x] `__tests__/backend/adapter-write-memory.test.ts` created
-- [ ] **IDE Extension**: Add memory edit commands and configuration to `package.json` (pending a linked/verifiable companion IDE change)
+- [x] **IDE Extension**: Add memory edit commands and configuration to `package.json`
 
 ### Phase 3: SVD Enhancements
 - [x] Implement SVD file discovery
 - [x] Add peripheral search/filter UI
 - [x] Implement change highlighting
 - [x] Add `<derivedFrom>` support
-- [ ] **IDE Extension**: Add peripheral search command to `package.json` (pending a linked/verifiable companion IDE change)
+- [x] **IDE Extension**: Add peripheral search command to `package.json`
 
 ### Phase 4: RTOS Support
 - [x] Create RTOS detection mechanism
 - [x] Implement FreeRTOS parser
 - [x] Add thread-aware stack mapping
 - [x] Add ThreadX and Zephyr support
-- [ ] **IDE Extension**: Add RTOS configuration and thread refresh command to `package.json`
+- [x] **IDE Extension**: Add RTOS configuration to `package.json`
 
 ### Phase 5: Polish & Testing
 - [ ] Integration testing for all features
@@ -627,7 +627,7 @@ Both extensions can be developed in parallel, but the IDE extension's package.js
 
 ### Files to Modify in IDE Extension
 
-Location: `https://github.com/pioarduino/pioarduino-vscode-ide/package.json`
+Location: [`package.json`](https://github.com/Jason2866/pioarduino-vscode-ide/blob/debug_120/package.json)
 
 Key sections to update:
 - `contributes.commands` - Add new command definitions
