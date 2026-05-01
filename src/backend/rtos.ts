@@ -232,7 +232,9 @@ export class RTOSDetector {
             return RTOSType.ThreadX;
         }
 
-        if (await this.symbolExists(reader, '&_kernel')) {
+        // Check for Zephyr-specific symbols rather than the generic &_kernel to avoid
+        // false-positives on non-Zephyr firmware that coincidentally exports _kernel.
+        if (await this.symbolExists(reader, '_kernel.current')) {
             return RTOSType.Zephyr;
         }
 
@@ -371,7 +373,11 @@ export class FreeRTOSThreadParser implements RTOSThreadParser {
         }
 
         // Walk ready task lists (one circular list per priority level).
-        for (let prio = 0; prio < 32 && threads.length < totalTasks; prio++) {
+        // Query configMAX_PRIORITIES from the target to avoid sending up to 32 sequential
+        // GDB requests on targets that use fewer priorities.
+        const maxPriorities =
+            parseNumericValue(await evaluateValue(reader, 'configMAX_PRIORITIES')) ?? 32;
+        for (let prio = 0; prio < maxPriorities && threads.length < totalTasks; prio++) {
             const itemCount = parseNumericValue(
                 await evaluateValue(reader, `pxReadyTasksLists[${prio}].uxNumberOfItems`)
             );

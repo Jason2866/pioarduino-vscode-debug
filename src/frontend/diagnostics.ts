@@ -71,8 +71,8 @@ export class DiagnosticsManager {
             this.logEntries.shift()
         }
 
-        // Always log errors and warnings, only log debug if enabled
-        if (level === 'error' || level === 'warn' || this.showDevDebugOutput) {
+        // Always log errors and warnings; log info in normal mode; log debug only if dev output enabled
+        if (level === 'error' || level === 'warn' || level === 'info' || this.showDevDebugOutput) {
             const timestamp = entry.timestamp.toISOString().split('T')[1].split('.')[0]
             const logLine = `[${timestamp}] [${level.toUpperCase()}] [${source}] ${message}`
             this.outputChannel.appendLine(logLine)
@@ -171,7 +171,9 @@ export class DiagnosticsManager {
                         const action = actions.find(a => a.label === selected)
                         if (action) {
                             this.info('DiagnosticsManager', `Executing action: ${action.label}`)
-                            action.callback()
+                            try { action.callback() } catch (err) {
+                                this.error('DiagnosticsManager', `Error dialog action failed: ${err}`)
+                            }
                         }
                     }
                 })
@@ -193,7 +195,9 @@ export class DiagnosticsManager {
                     if (selected) {
                         const action = actions.find(a => a.label === selected)
                         if (action) {
-                            action.callback()
+                            try { action.callback() } catch (err) {
+                                this.error('DiagnosticsManager', `Warning dialog action failed: ${err}`)
+                            }
                         }
                     }
                 })
@@ -215,7 +219,9 @@ export class DiagnosticsManager {
                     if (selected) {
                         const action = actions.find(a => a.label === selected)
                         if (action) {
-                            action.callback()
+                            try { action.callback() } catch (err) {
+                                this.error('DiagnosticsManager', `Info dialog action failed: ${err}`)
+                            }
                         }
                     }
                 })

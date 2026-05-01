@@ -149,9 +149,9 @@ describe('MemoryContentProvider', () => {
         })
 
         test('should return undefined for invalid positions', () => {
-            // Header lines clamp to the first row offset
+            // Header lines return undefined (clicking the header has no byte meaning)
             const offset = provider.getOffset({ line: 0, character: 15 } as any)
-            expect(offset).toBe(0)
+            expect(offset).toBeUndefined()
 
             // Character before first byte position
             const offset2 = provider.getOffset({ line: 2, character: 5 } as any)

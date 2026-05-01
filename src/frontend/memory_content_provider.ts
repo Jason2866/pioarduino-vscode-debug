@@ -52,8 +52,9 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
     private currentBytes: number[] = [];
     private currentAddress: number = 0;
 
-    // Memory diff tracking
+    // Memory diff tracking — per-URI to prevent cross-contamination between open windows
     private previousBytes: number[] = [];
+    private readonly uriBytes = new Map<string, { current: number[]; previous: number[] }>();
 
     /** Sets the data type for interpretation. */
     setDataType(type: MemoryDataType): void {
@@ -99,12 +100,17 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
 
     /** Returns byte offsets that differ between the last two reads. */
     getChangedOffsets(): number[] {
-        if (this.previousBytes.length === 0 || this.previousBytes.length !== this.currentBytes.length) {
+        return this.computeChangedOffsets(this.currentBytes, this.previousBytes);
+    }
+
+    /** Internal helper: returns changed offsets between two byte arrays. */
+    private computeChangedOffsets(current: number[], previous: number[]): number[] {
+        if (previous.length === 0 || previous.length !== current.length) {
             return [];
         }
         const changed: number[] = [];
-        for (let i = 0; i < this.currentBytes.length; i++) {
-            if (this.currentBytes[i] !== this.previousBytes[i]) {
+        for (let i = 0; i < current.length; i++) {
+            if (current[i] !== previous[i]) {
                 changed.push(i);
             }
         }
@@ -136,8 +142,14 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                         const bytes: number[] = result.bytes;
                         this.currentBytes = bytes;
 
-                        // Compute diff against previous read before updating snapshot
-                        const changedOffsets = new Set(this.getChangedOffsets());
+                        // Compute diff against the previous read of THIS specific URI to
+                        // avoid cross-contamination when multiple memory windows are open.
+                        const uriKey = uri.toString();
+                        const uriState = this.uriBytes.get(uriKey) ?? { current: [], previous: [] };
+                        const changedOffsets = new Set(this.computeChangedOffsets(bytes, uriState.current));
+                        uriState.previous = uriState.current;
+                        uriState.current = bytes.slice();
+                        this.uriBytes.set(uriKey, uriState);
 
                         let output = '';
 
@@ -196,7 +208,7 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                             output += `\n  Diff: ${changedOffsets.size} byte(s) changed since last read\n`;
                         }
 
-                        // Update snapshot for next diff computation
+                        // Update global snapshot for backward-compat with getChangedOffsets()
                         this.previousBytes = bytes.slice();
 
                         resolve(output);
@@ -367,7 +379,7 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
     /** Maps editor position to byte offset. */
     getOffset(position: vscode.Position): number | undefined {
         if (position.line < this.headerLines) {
-            return 0;
+            return undefined;
         }
 
         if (position.character < this.firstBytePos) {
