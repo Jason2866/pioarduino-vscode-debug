@@ -391,11 +391,11 @@ src/
 - [x] **IDE Extension**: Add memory edit commands and configuration to `package.json`
 
 ### Phase 3: SVD Enhancements
-- [ ] Implement SVD file discovery
-- [ ] Add peripheral search/filter UI
-- [ ] Implement change highlighting
-- [ ] Add `<derivedFrom>` support
-- [ ] **IDE Extension**: Add peripheral search command to `package.json`
+- [x] Implement SVD file discovery
+- [x] Add peripheral search/filter UI
+- [x] Implement change highlighting
+- [x] Add `<derivedFrom>` support
+- [x] **IDE Extension**: Add peripheral search command to `package.json`
 
 ### Phase 4: RTOS Support
 - [ ] Create RTOS detection mechanism

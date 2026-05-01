@@ -35,6 +35,7 @@ class PlatformIODebugExtension {
         const peripheralTreeView = vscode.window.createTreeView('platformio-debug.peripherals', {
             treeDataProvider: this.peripheralProvider,
         });
+        this.peripheralProvider.setTreeView(peripheralTreeView);
 
         context.subscriptions.push(
             vscode.debug.registerDebugConfigurationProvider(
@@ -58,6 +59,7 @@ class PlatformIODebugExtension {
             vscode.commands.registerCommand('platformio-debug.peripherals.selectedNode', this.peripheralsSelectedNode.bind(this)),
             vscode.commands.registerCommand('platformio-debug.peripherals.copyValue', this.peripheralsCopyValue.bind(this)),
             vscode.commands.registerCommand('platformio-debug.peripherals.setFormat', this.peripheralsSetFormat.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.peripherals.search', this.peripheralsSearch.bind(this)),
             vscode.commands.registerCommand('platformio-debug.registers.selectedNode', this.registersSelectedNode.bind(this)),
             vscode.commands.registerCommand('platformio-debug.registers.copyValue', this.registersCopyValue.bind(this)),
             vscode.commands.registerCommand('platformio-debug.registers.setFormat', this.registersSetFormat.bind(this)),
@@ -429,6 +431,11 @@ class PlatformIODebugExtension {
         this.peripheralProvider.refresh();
     }
 
+    /** Opens the peripheral search/filter QuickPick. */
+    private peripheralsSearch(): Promise<void> {
+        return this.peripheralProvider.search();
+    }
+
     /** Handles selection of a register node. */
     private registersSelectedNode(node: any): void {
         if (node.recordType !== RegisterRecordType.Field) {
@@ -465,8 +472,18 @@ class PlatformIODebugExtension {
                     this.registerProvider.debugSessionStarted(
                         this.context.workspaceState.get('debugRegistersTreeState')
                     );
+                    let svdPath: string | undefined = args.svdPath;
+                    if (!svdPath) {
+                        svdPath = this.peripheralProvider.findSVDFile(args.device);
+                        if (svdPath) {
+                            this.diagnostics.info(
+                                'SVD',
+                                `Auto-discovered SVD file: ${svdPath}`
+                            );
+                        }
+                    }
                     this.peripheralProvider.debugSessionStarted(
-                        args.svdPath,
+                        svdPath,
                         this.context.workspaceState.get('debugPeripheralsTreeState')
                     );
                     this.memoryTreeProvider.debugSessionStarted(

@@ -119,6 +119,27 @@ export const Range = jest.fn().mockImplementation((startLine: number, startChar:
     with: jest.fn()
 }))
 
+export const ThemeIcon = jest.fn().mockImplementation((id: string, color?: any) => ({
+    id,
+    color
+}))
+
+export const ThemeColor = jest.fn().mockImplementation((id: string) => ({ id }))
+
+export class TreeItem {
+    public label: any
+    public collapsibleState: any
+    public command: any
+    public tooltip: any
+    public iconPath: any
+    public contextValue: any
+    public description: any
+    constructor(label: any, collapsibleState?: any) {
+        this.label = label
+        this.collapsibleState = collapsibleState
+    }
+}
+
 // Default export
 export default {
     window,
@@ -131,5 +152,8 @@ export default {
     TreeItemCollapsibleState,
     OverviewRulerLane,
     Position,
-    Range
+    Range,
+    ThemeIcon,
+    ThemeColor,
+    TreeItem
 }
