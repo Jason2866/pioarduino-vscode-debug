@@ -4,7 +4,7 @@ import { encodeDisassembly } from './utils';
 import { PlatformIODebugConfigurationProvider } from './frontend/configprovider';
 import { DisassemblyContentProvider } from './frontend/disassembly_content_provider';
 import { DisassemblyTreeProvider } from './frontend/disassembly_tree_provider';
-import { MemoryContentProvider, MemoryDataType } from './frontend/memory_content_provider';
+import { MemoryContentProvider, MemoryDataType, Endianness } from './frontend/memory_content_provider';
 import { MemoryTreeProvider } from './frontend/memory_tree_provider';
 import { PeripheralTreeProvider, RecordType as PeripheralRecordType } from './frontend/peripheral';
 import { RegisterTreeProvider, RecordType as RegisterRecordType } from './frontend/registers';
@@ -31,6 +31,14 @@ class PlatformIODebugExtension {
         this.memoryTreeProvider = new MemoryTreeProvider();
         this.disassemblyTreeProvider = new DisassemblyTreeProvider();
         this.memoryContentProvider = new MemoryContentProvider();
+
+        // Apply workspace configuration defaults for memory and diagnostics settings.
+        const cfg = vscode.workspace.getConfiguration('platformio-debug');
+        const defaultDataType = cfg.get<string>('memory.defaultDataType', 'u8');
+        const defaultEndianness = cfg.get<string>('memory.defaultEndianness', 'little');
+        this.memoryContentProvider.setDataType(defaultDataType as MemoryDataType);
+        this.memoryContentProvider.setEndianness(defaultEndianness as Endianness);
+        this.diagnostics.setShowDevDebugOutput(cfg.get<boolean>('diagnostics.showDevDebugOutput', false));
 
         const peripheralTreeView = vscode.window.createTreeView('platformio-debug.peripherals', {
             treeDataProvider: this.peripheralProvider,
@@ -81,6 +89,13 @@ class PlatformIODebugExtension {
             vscode.debug.onDidStartDebugSession(this.debugSessionStarted.bind(this)),
             vscode.debug.onDidTerminateDebugSession(this.debugSessionTerminated.bind(this)),
             vscode.window.onDidChangeActiveTextEditor(this.activeEditorChanged.bind(this)),
+            vscode.workspace.onDidChangeConfiguration(e => {
+                if (e.affectsConfiguration('platformio-debug.diagnostics.showDevDebugOutput')) {
+                    this.diagnostics.setShowDevDebugOutput(
+                        vscode.workspace.getConfiguration('platformio-debug').get('diagnostics.showDevDebugOutput', false)
+                    );
+                }
+            }),
             vscode.window.onDidChangeTextEditorSelection((e) => {
                 if (e && e.textEditor.document.fileName.endsWith('.dbgmem')) {
                     this.memoryContentProvider.handleSelection(e);

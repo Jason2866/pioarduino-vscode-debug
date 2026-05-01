@@ -615,7 +615,7 @@ export class GDBDebugSession extends DebugSession {
         }
 
         const label = rtosThread.name || baseLabel;
-        const details: string[] = [rtosThread.source];
+        const details: string[] = [RTOSType[rtosThread.source]];
         if (rtosThread.state && rtosThread.state !== 'unknown') {
             details.push(rtosThread.state);
         }
