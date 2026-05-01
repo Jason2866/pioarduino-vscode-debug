@@ -47,6 +47,45 @@ describe('SVD derivedFrom', () => {
         expect(map.UART2['@_derivedFrom']).toBeUndefined()
     })
 
+    test('derived peripheral with extra register keeps all base registers', () => {
+        const map: Record<string, any> = {
+            UART1: {
+                name: 'UART1',
+                baseAddress: 0x40000000,
+                registers: {
+                    register: [
+                        { name: 'CR', addressOffset: 0x0, size: 32 },
+                        { name: 'DR', addressOffset: 0x4, size: 32 },
+                    ],
+                },
+            },
+            UART2: {
+                name: 'UART2',
+                baseAddress: 0x40001000,
+                '@_derivedFrom': 'UART1',
+                // Derived peripheral overrides one register and adds a new one
+                registers: {
+                    register: [
+                        { name: 'CR', addressOffset: 0x0, size: 32, access: 'read-write' },
+                        { name: 'SR', addressOffset: 0x8, size: 32 },
+                    ],
+                },
+            },
+        }
+
+        ;(provider as any)._resolvePeripheralDerivedFrom(map)
+
+        const names = map.UART2.registers.register.map((r: any) => r.name)
+        // Base register DR must be preserved
+        expect(names).toContain('DR')
+        // Overridden register CR must be present with derived properties
+        expect(names).toContain('CR')
+        const cr = map.UART2.registers.register.find((r: any) => r.name === 'CR')
+        expect(cr.access).toBe('read-write')
+        // New register from derived
+        expect(names).toContain('SR')
+    })
+
     test('resolves transitive derivedFrom chains', () => {
         const map: Record<string, any> = {
             A: { name: 'A', baseAddress: 0x100, value: 'fromA' },

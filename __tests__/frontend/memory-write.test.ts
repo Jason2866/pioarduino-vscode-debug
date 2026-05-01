@@ -93,17 +93,11 @@ describe('Memory Write Operations', () => {
             })
         })
 
-        test('should handle value > 0xFF by masking', async () => {
-            mockCustomRequest.mockResolvedValue({ success: true })
-
-            // Value 0x1AB should be masked to 0xAB
+        test('should reject value > 0xFF with an error', async () => {
             const success = await provider.writeByte(0x20000000, 0x1AB)
 
-            expect(success).toBe(true)
-            expect(mockCustomRequest).toHaveBeenCalledWith('write-memory', {
-                address: 0x20000000,
-                data: 'ab'
-            })
+            expect(success).toBe(false)
+            expect(mockCustomRequest).not.toHaveBeenCalled()
         })
 
         test('should return false when no debug session', async () => {
@@ -184,17 +178,11 @@ describe('Memory Write Operations', () => {
             })
         })
 
-        test('should handle values > 0xFF by masking', async () => {
-            mockCustomRequest.mockResolvedValue({ success: true })
-
-            // Values should be masked to lower 8 bits
+        test('should reject array containing values > 0xFF with an error', async () => {
             const success = await provider.writeBytes(0x20000000, [0x1FF, 0x2AB, 0x3CD])
 
-            expect(success).toBe(true)
-            expect(mockCustomRequest).toHaveBeenCalledWith('write-memory', {
-                address: 0x20000000,
-                data: 'ffabcd'
-            })
+            expect(success).toBe(false)
+            expect(mockCustomRequest).not.toHaveBeenCalled()
         })
 
         test('should return false when no debug session', async () => {

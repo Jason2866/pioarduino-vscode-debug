@@ -315,6 +315,12 @@ class PlatformIODebugExtension {
 
     /** Sets the data type for memory interpretation. */
     private memorySetDataType(): void {
+        // Capture the active memory editor URI before opening the quick pick
+        // (which may shift focus away from the editor).
+        const activeMemUri = vscode.window.activeTextEditor?.document?.uri?.scheme === 'examinememory'
+            ? vscode.window.activeTextEditor.document.uri.toString()
+            : null;
+
         const dataTypes = [
             { label: 'u8 (unsigned 8-bit)', value: MemoryDataType.U8 },
             { label: 'u16 (unsigned 16-bit)', value: MemoryDataType.U16 },
@@ -332,7 +338,11 @@ class PlatformIODebugExtension {
             if (selected) {
                 const dataType = dataTypes.find(dt => dt.label === selected)?.value;
                 if (dataType) {
-                    this.memoryContentProvider.setDataType(dataType);
+                    if (activeMemUri) {
+                        this.memoryContentProvider.setDataTypeForUri(activeMemUri, dataType);
+                    } else {
+                        this.memoryContentProvider.setDataType(dataType);
+                    }
                     this.refreshOpenMemoryEditors();
                 }
             }
@@ -341,8 +351,18 @@ class PlatformIODebugExtension {
 
     /** Toggles endianness for memory interpretation. */
     private memoryToggleEndianness(): void {
-        this.memoryContentProvider.toggleEndianness();
-        const endianness = this.memoryContentProvider.getEndianness();
+        const activeMemUri = vscode.window.activeTextEditor?.document?.uri?.scheme === 'examinememory'
+            ? vscode.window.activeTextEditor.document.uri.toString()
+            : null;
+
+        let endianness: Endianness;
+        if (activeMemUri) {
+            this.memoryContentProvider.toggleEndiannessForUri(activeMemUri);
+            endianness = this.memoryContentProvider.getEndiannessForUri(activeMemUri);
+        } else {
+            this.memoryContentProvider.toggleEndianness();
+            endianness = this.memoryContentProvider.getEndianness();
+        }
         vscode.window.showInformationMessage(`Memory view endianness: ${endianness}`);
 
         this.refreshOpenMemoryEditors();

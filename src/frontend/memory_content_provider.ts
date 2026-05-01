@@ -63,6 +63,8 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
     private previousBytes: number[] = [];
     private readonly uriBytes = new Map<string, { current: number[]; previous: number[] }>();
     private readonly uriChangedOffsets = new Map<string, Set<number>>();
+    // Per-URI display settings; fall back to global defaults when absent.
+    private readonly uriSettings = new Map<string, { dataType?: MemoryDataType; endianness?: Endianness; showAscii?: boolean }>();
 
     /** Sets the data type for interpretation. */
     setDataType(type: MemoryDataType): void {
@@ -104,6 +106,39 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
     /** Toggles the ASCII column visibility. */
     toggleAsciiView(): void {
         this.showAscii = !this.showAscii;
+    }
+
+    /** Sets the data type for a specific document URI. */
+    setDataTypeForUri(uriKey: string, type: MemoryDataType): void {
+        const s = this.uriSettings.get(uriKey) ?? {};
+        s.dataType = type;
+        this.uriSettings.set(uriKey, s);
+    }
+
+    /** Gets the effective data type for a URI, falling back to the global default. */
+    getDataTypeForUri(uriKey: string): MemoryDataType {
+        return this.uriSettings.get(uriKey)?.dataType ?? this.dataType;
+    }
+
+    /** Toggles endianness for a specific document URI. */
+    toggleEndiannessForUri(uriKey: string): void {
+        const s = this.uriSettings.get(uriKey) ?? {};
+        s.endianness = (s.endianness ?? this.endianness) === Endianness.Little
+            ? Endianness.Big
+            : Endianness.Little;
+        this.uriSettings.set(uriKey, s);
+    }
+
+    /** Gets the effective endianness for a URI, falling back to the global default. */
+    getEndiannessForUri(uriKey: string): Endianness {
+        return this.uriSettings.get(uriKey)?.endianness ?? this.endianness;
+    }
+
+    /** Toggles the ASCII column for a specific document URI. */
+    toggleAsciiViewForUri(uriKey: string): void {
+        const s = this.uriSettings.get(uriKey) ?? {};
+        s.showAscii = !(s.showAscii ?? this.showAscii);
+        this.uriSettings.set(uriKey, s);
     }
 
     /** Returns byte offsets that differ between the last two reads. */
@@ -160,11 +195,17 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                         this.uriBytes.set(uriKey, uriState);
                         this.uriChangedOffsets.set(uriKey, changedOffsets);
 
+                        // Resolve per-URI display settings, falling back to global defaults.
+                        const uriOverrides = this.uriSettings.get(uriKey) ?? {};
+                        const dataType = uriOverrides.dataType ?? this.dataType;
+                        const endianness = uriOverrides.endianness ?? this.endianness;
+                        const showAscii = uriOverrides.showAscii ?? this.showAscii;
+
                         let output = '';
 
                         // Header with data type info
-                        const asciiHeader = this.showAscii ? '  | ASCII' : '';
-                        output += `  Data Type: ${this.dataType}, Endianness: ${this.endianness}\n`;
+                        const asciiHeader = showAscii ? '  | ASCII' : '';
+                        output += `  Data Type: ${dataType}, Endianness: ${endianness}\n`;
                         output += `  Offset: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F${asciiHeader}\n`;
 
                         let rowAddress = address - (address % 16);
@@ -186,7 +227,7 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                                     : String.fromCharCode(bytes[i]);
 
                             if ((address + i) % 16 === 15 && i < length - 1) {
-                                if (this.showAscii) {
+                                if (showAscii) {
                                     output += ' |' + asciiStr;
                                 }
                                 asciiStr = '';
@@ -200,13 +241,13 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                         for (let i = 0; i < remaining; i++) {
                             output += '   ';
                         }
-                        if (this.showAscii) {
+                        if (showAscii) {
                             output += ' |' + asciiStr;
                         }
                         output += '\n';
 
                         // Add data type interpretation section
-                        const typeInfo = this.formatDataTypeInterpretation(bytes, address);
+                        const typeInfo = this.formatDataTypeInterpretation(bytes, address, dataType, endianness);
                         if (typeInfo) {
                             output += '\n  Data Type Interpretation:\n';
                             output += typeInfo;
@@ -217,8 +258,8 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
                             output += `\n  Diff: ${changedOffsets.size} byte(s) changed since last read\n`;
                         }
 
-                        // Update global snapshot for backward-compat with getChangedOffsets()
-                        this.previousBytes = bytes.slice();
+                        // Store the prior snapshot so getChangedOffsets() returns the true diff.
+                        this.previousBytes = uriState.previous.slice();
 
                         resolve(output);
                     },
@@ -233,10 +274,15 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
     }
 
     /** Formats data type interpretation of the bytes. */
-    private formatDataTypeInterpretation(bytes: number[], baseAddress: number): string {
+    private formatDataTypeInterpretation(
+        bytes: number[],
+        baseAddress: number,
+        dataType: MemoryDataType,
+        endianness: Endianness
+    ): string {
         if (bytes.length === 0) return '';
 
-        const typeSize = this.getTypeSize(this.dataType);
+        const typeSize = this.getTypeSize(dataType);
         let output = '';
         let lineCount = 0;
         const maxLines = 16; // Limit output lines
@@ -244,12 +290,12 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
         for (let i = 0; i < bytes.length && lineCount < maxLines; i += typeSize) {
             if (i + typeSize > bytes.length) break;
 
-            const value = this.readValue(bytes, i, this.dataType, this.endianness);
+            const value = this.readValue(bytes, i, dataType, endianness);
             const address = baseAddress + i;
 
             output += `    ${hexFormat(address, 8)}: `;
 
-            switch (this.dataType) {
+            switch (dataType) {
                 case MemoryDataType.U8:
                 case MemoryDataType.U16:
                 case MemoryDataType.U32:
@@ -348,8 +394,15 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
             return false;
         }
 
+        if (!Number.isInteger(value) || value < 0 || value > 255) {
+            vscode.window.showErrorMessage(
+                `Invalid byte value ${value}: must be an integer in the range 0–255`
+            );
+            return false;
+        }
+
         try {
-            const hexValue = hexFormat(value & 0xFF, 2, false);
+            const hexValue = hexFormat(value, 2, false);
             await vscode.debug.activeDebugSession.customRequest('write-memory', {
                 address,
                 data: hexValue
@@ -367,8 +420,17 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
             return false;
         }
 
+        for (const b of bytes) {
+            if (!Number.isInteger(b) || b < 0 || b > 255) {
+                vscode.window.showErrorMessage(
+                    `Invalid byte value ${b}: each byte must be an integer in the range 0–255`
+                );
+                return false;
+            }
+        }
+
         try {
-            const hexData = bytes.map(b => hexFormat(b & 0xFF, 2, false)).join('');
+            const hexData = bytes.map(b => hexFormat(b, 2, false)).join('');
             await vscode.debug.activeDebugSession.customRequest('write-memory', {
                 address,
                 data: hexData
@@ -458,7 +520,7 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
         const ranges: vscode.Range[] = [];
         for (const offset of changedOffsets) {
             ranges.push(...this.getRanges(offset, offset, false));
-            if (this.showAscii) {
+            if (this.uriSettings.get(uriKey)?.showAscii ?? this.showAscii) {
                 ranges.push(...this.getRanges(offset, offset, true));
             }
         }

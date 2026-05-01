@@ -89,7 +89,8 @@ describe('Memory editor – write / refresh / diff integration', () => {
         const output = await provider.provideTextDocumentContent(uri)
 
         const changed = provider.getChangedOffsets()
-        expect(changed).toHaveLength(0)  // snapshot was just updated; offsets reported during render
+        expect(changed).toHaveLength(1)  // previousBytes now holds the prior snapshot, so the diff is visible
+        expect(changed).toContain(15)
         expect(output).toContain('Diff: 1 byte(s) changed since last read')
     })
 

@@ -1221,7 +1221,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             visiting.add(name);
             resolve(baseName, visiting);
             visiting.delete(name);
-            peripheralMap[name] = { ...peripheralMap[baseName], ...periph };
+            peripheralMap[name] = this._mergePeripheralDefinitions(peripheralMap[baseName], periph);
             // Drop the marker so we don't re-process if called again.
             delete peripheralMap[name]['@_derivedFrom'];
             resolved[name] = true;
@@ -1230,6 +1230,47 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         for (const name in peripheralMap) {
             resolve(name, new Set<string>());
         }
+    }
+
+    /**
+     * Deep-merges a derived peripheral on top of its base.
+     * Scalar properties are overridden by the derived value.
+     * The `registers` container is merged by name so that sibling registers/clusters
+     * from the base are preserved when the derived peripheral only overrides some.
+     */
+    private _mergePeripheralDefinitions(base: any, derived: any): any {
+        const result: any = { ...base };
+        for (const key of Object.keys(derived)) {
+            if (key === 'registers' && base[key] != null && derived[key] != null) {
+                result[key] = this._mergeRegistersContainer(base[key], derived[key]);
+            } else {
+                result[key] = derived[key];
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Merges two SVD `<registers>` container objects by combining their
+     * `register` and `cluster` arrays, keyed by name.  Derived entries override
+     * base entries with the same name; unique base entries are preserved.
+     */
+    private _mergeRegistersContainer(base: any, derived: any): any {
+        const merged: any = { ...base };
+        for (const key of ['register', 'cluster'] as const) {
+            if (derived[key] === undefined) {
+                continue;
+            }
+            const baseArr: any[] = ([] as any[]).concat(base[key] ?? []);
+            const derivedArr: any[] = ([] as any[]).concat(derived[key]);
+            const byName = new Map<string, any>(baseArr.map((r) => [r.name, r]));
+            for (const item of derivedArr) {
+                const existing = byName.get(item.name);
+                byName.set(item.name, existing ? { ...existing, ...item } : item);
+            }
+            merged[key] = Array.from(byName.values());
+        }
+        return merged;
     }
 
     /**
