@@ -1318,6 +1318,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 try {
                     const parser = new XMLParser({
                         ignoreAttributes: false,
+                        parseTagValue: false,
                         isArray: (_name: string, jpath: string) => {
                             const arrayPaths = [
                                 'device.peripherals.peripheral',
