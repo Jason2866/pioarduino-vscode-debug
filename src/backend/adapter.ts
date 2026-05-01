@@ -21,6 +21,7 @@ import { VariableObject, MIError } from './mi2/types';
 import { expandValue } from './expand_value';
 import { MI2 } from './mi2/mi2';
 import { MINode } from './mi_parse';
+import { RTOSManager, RTOSThread, RTOSType } from './rtos';
 import { SymbolTable } from './symbols';
 
 /** Wraps a variable reference with options. */
@@ -59,6 +60,10 @@ export class GDBDebugSession extends DebugSession {
     private frameIdMap: Map<number, { threadId: number; frameLevel: number }> = new Map();
     private nextFrameId: number = 256;
     private fileExistsCache: Map<string, boolean> = new Map();
+    private rtosManager = new RTOSManager();
+    private rtosType: RTOSType = RTOSType.None;
+    private rtosThreadMap: Map<number, RTOSThread> = new Map();
+    private dapThreadIdMap: Map<number, number> = new Map();
     private miDebugger: MI2;
     private args: any;
     private quit: boolean;
@@ -129,6 +134,9 @@ export class GDBDebugSession extends DebugSession {
         this.frameIdMap = new Map();
         this.nextFrameId = 256;
         this.fileExistsCache = new Map();
+        this.rtosType = RTOSType.None;
+        this.rtosThreadMap = new Map();
+        this.dapThreadIdMap = new Map();
 
         const pioArgs = ['debug'];
         if (this.args.projectEnvName) {
@@ -569,6 +577,59 @@ export class GDBDebugSession extends DebugSession {
         }
     }
 
+    private async refreshRTOSThreads(gdbThreadIds: number[]): Promise<void> {
+        this.dapThreadIdMap = new Map();
+        this.rtosThreadMap = new Map();
+        gdbThreadIds.forEach((threadId) => this.dapThreadIdMap.set(threadId, threadId));
+
+        const rtosConfig = this.args?.rtos;
+        const enabled = rtosConfig?.enabled !== false;
+        if (!enabled) {
+            this.rtosType = RTOSType.None;
+            return;
+        }
+
+        try {
+            const result = await this.rtosManager.load(this.miDebugger, {
+                enabled,
+                requestedType: rtosConfig?.type || 'auto',
+                currentGdbThreadId: this.currentThreadId,
+                gdbThreadIds,
+            });
+
+            this.rtosType = result.type;
+            result.threads.forEach((thread) => {
+                const gdbThreadId = thread.gdbThreadId ?? thread.id;
+                this.dapThreadIdMap.set(thread.id, gdbThreadId);
+                this.rtosThreadMap.set(gdbThreadId, thread);
+            });
+        } catch (err) {
+            this.rtosType = RTOSType.Unknown;
+            this.handleMsg('log', `RTOS discovery failed: ${err}`);
+        }
+    }
+
+    private formatThreadLabel(baseLabel: string, rtosThread?: RTOSThread): string {
+        if (!rtosThread) {
+            return baseLabel;
+        }
+
+        const label = rtosThread.name || baseLabel;
+        const details: string[] = [rtosThread.source];
+        if (rtosThread.state && rtosThread.state !== 'unknown') {
+            details.push(rtosThread.state);
+        }
+        if (rtosThread.priority !== undefined) {
+            details.push(`prio ${rtosThread.priority}`);
+        }
+
+        return details.length > 0 ? `${label} [${details.join(', ')}]` : label;
+    }
+
+    private resolveGDBThreadId(threadId: number): number {
+        return this.dapThreadIdMap.get(threadId) ?? threadId;
+    }
+
     /** Handles GDB quit. */
     private quitEvent(): void {
         this.quit = true;
@@ -763,6 +824,8 @@ export class GDBDebugSession extends DebugSession {
                 this.currentThreadId = threadIds[0];
             }
 
+            await this.refreshRTOSThreads(threadIds);
+
             const threadInfoResults = await Promise.all(
                 threadIds.map((id) => this.miDebugger.sendCommand(`thread-info ${id}`))
             );
@@ -775,7 +838,8 @@ export class GDBDebugSession extends DebugSession {
                         const id = parseInt(MINode.valueOf(thread, 'id'), 10);
                         const targetId = MINode.valueOf(thread, 'target-id');
                         const details = MINode.valueOf(thread, 'details');
-                        return new Thread(id, details || targetId);
+                        const label = this.formatThreadLabel(details || targetId, this.rtosThreadMap.get(id));
+                        return new Thread(id, label);
                     }
                     return null;
                 })
@@ -790,12 +854,13 @@ export class GDBDebugSession extends DebugSession {
 
     protected async stackTraceRequest(response: any, args: any): Promise<void> {
         try {
-            const stack = await this.miDebugger.getStack(args.threadId, args.startFrame, args.levels);
+            const gdbThreadId = this.resolveGDBThreadId(args.threadId);
+            const stack = await this.miDebugger.getStack(gdbThreadId, args.startFrame, args.levels);
             const frames: StackFrame[] = [];
 
             for (const frame of stack) {
                 const frameIndex = this.nextFrameId++;
-                this.frameIdMap.set(frameIndex, { threadId: args.threadId, frameLevel: parseInt(frame.level, 10) });
+                this.frameIdMap.set(frameIndex, { threadId: gdbThreadId, frameLevel: parseInt(frame.level, 10) });
                 const filePath = frame.file;
                 let useDisassembly = this.forceDisassembly || !filePath;
 
@@ -1379,4 +1444,7 @@ export class GDBDebugSession extends DebugSession {
     }
 }
 
-DebugSession.run(GDBDebugSession);
+// Only start the debug adapter when this file is executed directly (not when imported by tests).
+if (require.main === module) {
+    DebugSession.run(GDBDebugSession);
+}

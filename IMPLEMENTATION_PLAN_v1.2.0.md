@@ -398,10 +398,10 @@ src/
 - [x] **IDE Extension**: Add peripheral search command to `package.json`
 
 ### Phase 4: RTOS Support
-- [ ] Create RTOS detection mechanism
-- [ ] Implement FreeRTOS parser
-- [ ] Add thread-aware stack mapping
-- [ ] Add ThreadX and Zephyr support
+- [x] Create RTOS detection mechanism
+- [x] Implement FreeRTOS parser
+- [x] Add thread-aware stack mapping
+- [x] Add ThreadX and Zephyr support
 - [ ] **IDE Extension**: Add RTOS configuration and thread refresh command to `package.json`
 
 ### Phase 5: Polish & Testing
