@@ -55,6 +55,75 @@ describe('MemoryContentProvider', () => {
         provider = new MemoryContentProvider()
     })
 
+    describe('Display-setting isolation between provider instances', () => {
+        test('setting dataType on providerA does not affect providerB', () => {
+            const providerA = new MemoryContentProvider()
+            const providerB = new MemoryContentProvider()
+
+            const allTypes = [
+                MemoryDataType.U8,
+                MemoryDataType.U16,
+                MemoryDataType.U32,
+                MemoryDataType.U64,
+                MemoryDataType.I8,
+                MemoryDataType.I16,
+                MemoryDataType.I32,
+                MemoryDataType.I64,
+                MemoryDataType.Float,
+                MemoryDataType.Double,
+            ]
+
+            for (const type of allTypes) {
+                providerA.setDataType(type)
+                // providerB must remain at its own default regardless of providerA
+                expect(providerB.getDataType()).toBe(MemoryDataType.U8)
+            }
+
+            // After resetting providerA to Float, providerB still at U8
+            providerA.setDataType(MemoryDataType.Float)
+            expect(providerB.getDataType()).toBe(MemoryDataType.U8)
+        })
+
+        test('endianness changes on providerA do not affect providerB', () => {
+            const providerA = new MemoryContentProvider()
+            const providerB = new MemoryContentProvider()
+
+            // Both default to Little
+            expect(providerA.getEndianness()).toBe(Endianness.Little)
+            expect(providerB.getEndianness()).toBe(Endianness.Little)
+
+            providerA.setEndianness(Endianness.Big)
+            expect(providerA.getEndianness()).toBe(Endianness.Big)
+            expect(providerB.getEndianness()).toBe(Endianness.Little)
+
+            providerA.toggleEndianness()
+            expect(providerA.getEndianness()).toBe(Endianness.Little)
+            expect(providerB.getEndianness()).toBe(Endianness.Little)
+
+            providerB.setEndianness(Endianness.Big)
+            expect(providerA.getEndianness()).toBe(Endianness.Little)
+            expect(providerB.getEndianness()).toBe(Endianness.Big)
+        })
+
+        test('per-URI settings are isolated: changing URI A settings does not affect URI B fallback', () => {
+            const p = new MemoryContentProvider()
+            const uriA = 'examinememory://mem?address=0x20000000&length=0x10'
+            const uriB = 'examinememory://mem?address=0x30000000&length=0x10'
+
+            // Set URI A to U32 / Big
+            p.setDataTypeForUri(uriA, MemoryDataType.U32)
+            p.toggleEndiannessForUri(uriA)
+
+            // URI B must still return the global defaults (U8 / Little)
+            expect(p.getDataTypeForUri(uriB)).toBe(MemoryDataType.U8)
+            expect(p.getEndiannessForUri(uriB)).toBe(Endianness.Little)
+
+            // URI A has its own values
+            expect(p.getDataTypeForUri(uriA)).toBe(MemoryDataType.U32)
+            expect(p.getEndiannessForUri(uriA)).toBe(Endianness.Big)
+        })
+    })
+
     describe('Data Type Settings', () => {
         test('should default to U8 data type', () => {
             expect(provider.getDataType()).toBe(MemoryDataType.U8)

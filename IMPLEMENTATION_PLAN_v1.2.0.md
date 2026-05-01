@@ -344,7 +344,7 @@ The `pioarduino-vscode-ide` extension ([`debug_120` branch](https://github.com/J
 - **Diagnostics Panel**: Output channel for diagnostic messages
 
 ### File Locations in IDE Extension
-```
+```text
 https://github.com/Jason2866/pioarduino-vscode-ide/tree/debug_120
 ├── package.json              (modified: commands, config, views, rtos launch property)
 ├── syntaxes/                 (existing: language definitions)
@@ -355,7 +355,7 @@ https://github.com/Jason2866/pioarduino-vscode-ide/tree/debug_120
 
 ## Proposed File Structure (Debug Extension)
 
-```
+```text
 src/
 ├── backend/
 │   ├── adapter.ts              (modify: RTOS thread awareness)
@@ -411,7 +411,7 @@ src/
 
 ### Phase 5: Polish & Testing
 - [x] Integration testing for all features (`__tests__/integration/feature-integration.test.ts`)
-- [ ] **IDE Extension**: Test all new commands and configurations
+- [x] **IDE Extension**: Test all new commands and configurations
 - [ ] Documentation updates
 - [ ] Bug fixes and edge cases
 

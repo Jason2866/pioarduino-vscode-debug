@@ -352,39 +352,38 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
         const size = this.getTypeSize(type);
         const buf = Buffer.alloc(size);
 
-        // Copy bytes
         for (let i = 0; i < size; i++) {
             buf[i] = bytes[offset + i];
         }
 
-        // Reverse for big endian if needed
         if (endianness === Endianness.Big) {
-            buf.reverse();
+            switch (type) {
+                case MemoryDataType.U8:  return buf.readUInt8(0);
+                case MemoryDataType.U16: return buf.readUInt16BE(0);
+                case MemoryDataType.U32: return buf.readUInt32BE(0);
+                case MemoryDataType.U64: return buf.readBigUInt64BE(0);
+                case MemoryDataType.I8:  return buf.readInt8(0);
+                case MemoryDataType.I16: return buf.readInt16BE(0);
+                case MemoryDataType.I32: return buf.readInt32BE(0);
+                case MemoryDataType.I64: return buf.readBigInt64BE(0);
+                case MemoryDataType.Float:  return buf.readFloatBE(0);
+                case MemoryDataType.Double: return buf.readDoubleBE(0);
+                default: return buf.readUInt8(0);
+            }
         }
 
         switch (type) {
-            case MemoryDataType.U8:
-                return buf.readUInt8(0);
-            case MemoryDataType.U16:
-                return buf.readUInt16LE(0);
-            case MemoryDataType.U32:
-                return buf.readUInt32LE(0);
-            case MemoryDataType.U64:
-                return buf.readBigUInt64LE(0);
-            case MemoryDataType.I8:
-                return buf.readInt8(0);
-            case MemoryDataType.I16:
-                return buf.readInt16LE(0);
-            case MemoryDataType.I32:
-                return buf.readInt32LE(0);
-            case MemoryDataType.I64:
-                return buf.readBigInt64LE(0);
-            case MemoryDataType.Float:
-                return buf.readFloatLE(0);
-            case MemoryDataType.Double:
-                return buf.readDoubleLE(0);
-            default:
-                return buf.readUInt8(0);
+            case MemoryDataType.U8:  return buf.readUInt8(0);
+            case MemoryDataType.U16: return buf.readUInt16LE(0);
+            case MemoryDataType.U32: return buf.readUInt32LE(0);
+            case MemoryDataType.U64: return buf.readBigUInt64LE(0);
+            case MemoryDataType.I8:  return buf.readInt8(0);
+            case MemoryDataType.I16: return buf.readInt16LE(0);
+            case MemoryDataType.I32: return buf.readInt32LE(0);
+            case MemoryDataType.I64: return buf.readBigInt64LE(0);
+            case MemoryDataType.Float:  return buf.readFloatLE(0);
+            case MemoryDataType.Double: return buf.readDoubleLE(0);
+            default: return buf.readUInt8(0);
         }
     }
 

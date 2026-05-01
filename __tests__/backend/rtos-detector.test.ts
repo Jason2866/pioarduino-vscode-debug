@@ -28,6 +28,20 @@ describe('RTOSDetector', () => {
         await expect(detector.detect(reader as any)).resolves.toBe(RTOSType.FreeRTOS)
     })
 
+    test('detects ThreadX using _tx_thread_current_ptr symbol', async () => {
+        const detector = new RTOSDetector()
+        const reader = createReader({ '&_tx_thread_current_ptr': '0x24000000' })
+
+        await expect(detector.detect(reader as any)).resolves.toBe(RTOSType.ThreadX)
+    })
+
+    test('detects Zephyr using _kernel.current symbol', async () => {
+        const detector = new RTOSDetector()
+        const reader = createReader({ '_kernel.current': '0x20003000' })
+
+        await expect(detector.detect(reader as any)).resolves.toBe(RTOSType.Zephyr)
+    })
+
     test('returns none when no RTOS markers are available', async () => {
         const detector = new RTOSDetector()
         const reader = {

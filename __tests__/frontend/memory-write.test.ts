@@ -100,6 +100,23 @@ describe('Memory Write Operations', () => {
             expect(mockCustomRequest).not.toHaveBeenCalled()
         })
 
+        test('should reject negative values', async () => {
+            const success = await provider.writeByte(0x20000000, -1)
+
+            expect(success).toBe(false)
+            expect(mockCustomRequest).not.toHaveBeenCalled()
+        })
+
+        test('should reject fractional values', async () => {
+            const successA = await provider.writeByte(0x20000000, 1.5)
+            expect(successA).toBe(false)
+            expect(mockCustomRequest).not.toHaveBeenCalled()
+
+            const successB = await provider.writeByte(0x20000000, 0.5)
+            expect(successB).toBe(false)
+            expect(mockCustomRequest).not.toHaveBeenCalled()
+        })
+
         test('should return false when no debug session', async () => {
             hasActiveDebugSession = false
 

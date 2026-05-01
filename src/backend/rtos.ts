@@ -375,6 +375,14 @@ export class FreeRTOSThreadParser implements RTOSThreadParser {
         // Walk ready task lists (one circular list per priority level).
         // Query configMAX_PRIORITIES from the target to avoid sending up to 32 sequential
         // GDB requests on targets that use fewer priorities.
+        //
+        // NOTE: This traversal is intentionally sequential — each GDB expression evaluation
+        // waits for the previous one before proceeding. The loop is bounded by
+        // configMAX_PRIORITIES (or 32 when the symbol is unavailable) and exits early once all
+        // tasks (totalTasks) have been found. visitedTCBPtrs prevents duplicate entries.
+        // readFreeRTOSTCBByAddress is called once per unique TCB pointer. If latency becomes
+        // a bottleneck (e.g. on slow transports or with many priorities), this area could be
+        // refactored to issue evaluations in parallel batches (Promise.all per priority level).
         const maxPriorities =
             parseNumericValue(await evaluateValue(reader, 'configMAX_PRIORITIES')) ?? 32;
         for (let prio = 0; prio < maxPriorities && threads.length < totalTasks; prio++) {

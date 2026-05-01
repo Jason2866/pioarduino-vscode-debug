@@ -97,13 +97,15 @@ describe('SVD File Discovery', () => {
         expect(provider.findSVDFile('esp32')).toBe(target)
     })
 
-    test('falls back to first candidate when device name has no match', () => {
+    test('returns undefined when device name is given but no filename matches', () => {
         const a = path.join(workspaceDir, 'a.svd')
         const b = path.join(workspaceDir, 'b.svd')
         fs.writeFileSync(a, '<device/>')
         fs.writeFileSync(b, '<device/>')
         const provider = new PeripheralTreeProvider()
-        expect(provider.findSVDFile('does-not-exist')).toBe(a)
+        // A device name is provided but neither 'a.svd' nor 'b.svd' contains it,
+        // so findSVDFile must return undefined rather than silently loading the wrong file.
+        expect(provider.findSVDFile('does-not-exist')).toBeUndefined()
     })
 
     test('ignores files without .svd extension', () => {

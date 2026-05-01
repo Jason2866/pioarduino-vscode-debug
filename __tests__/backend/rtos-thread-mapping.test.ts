@@ -68,13 +68,16 @@ describe('RTOS thread mapping', () => {
         await session.threadsRequest(response)
 
         expect(response.body.threads).toHaveLength(2)
-        expect(response.body.threads[0]).toMatchObject({ id: 1, name: 'main' })
-        expect(response.body.threads[1]).toMatchObject({
-            id: 2,
-            name: expect.stringContaining('IdleTask'),
-        })
-        expect(response.body.threads[1].name).toContain('running')
-        expect(response.body.threads[1].name).toContain('prio 1')
+
+        // Order-independent: locate threads by id
+        const mainThread = response.body.threads.find((t: any) => t.id === 1)
+        const idleThread = response.body.threads.find((t: any) => t.id === 2)
+
+        expect(mainThread).toMatchObject({ id: 1, name: 'main' })
+        expect(idleThread).toBeDefined()
+        expect(idleThread.name).toContain('IdleTask')
+        expect(idleThread.name).toContain('running')
+        expect(idleThread.name).toContain('prio 1')
     })
 
     test('stackTraceRequest resolves DAP thread ids through the RTOS map', async () => {

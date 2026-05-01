@@ -1587,9 +1587,10 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             const match = candidates.find((c) =>
                 path.basename(c).toLowerCase().includes(lower)
             );
-            if (match) {
-                return match;
-            }
+            // When a device name is given but no filename matches, return undefined so
+            // callers can detect the missing device-specific SVD rather than silently
+            // loading the wrong file.
+            return match;
         }
 
         return candidates[0];
