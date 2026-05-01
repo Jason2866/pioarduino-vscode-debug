@@ -103,8 +103,7 @@ describe('SVD File Discovery', () => {
         fs.writeFileSync(a, '<device/>')
         fs.writeFileSync(b, '<device/>')
         const provider = new PeripheralTreeProvider()
-        const result = provider.findSVDFile('does-not-exist')
-        expect([a, b]).toContain(result)
+        expect(provider.findSVDFile('does-not-exist')).toBe(a)
     })
 
     test('ignores files without .svd extension', () => {

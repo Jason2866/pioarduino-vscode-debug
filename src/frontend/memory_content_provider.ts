@@ -26,6 +26,7 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
     private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
     public onDidChange = this._onDidChange.event;
 
+    private readonly headerLines = 2;
     private firstBytePos = 10;
     private lastBytePos = this.firstBytePos + 48 - 1;
     private firstAsciiPos = this.lastBytePos + 3;
@@ -309,26 +310,39 @@ export class MemoryContentProvider implements vscode.TextDocumentContentProvider
 
     /** Maps editor position to byte offset. */
     getOffset(position: vscode.Position): number | undefined {
-        if (position.line < 1 || position.character < this.firstBytePos) {
+        if (position.line < this.headerLines) {
+            return 0;
+        }
+
+        if (position.character < this.firstBytePos) {
             return;
         }
 
-        let offset = 16 * (position.line - 1);
-        const charOffset = position.character - this.firstBytePos;
-
-        if (position.character >= this.firstBytePos && position.character <= this.lastBytePos) {
-            offset += Math.floor(charOffset / 3);
-        } else if (position.character >= this.firstAsciiPos) {
-            offset += position.character - this.firstAsciiPos;
+        if (position.character > this.lastBytePos && position.character < this.firstAsciiPos) {
+            return;
         }
 
-        return offset;
+        let offset = 16 * Math.max(0, position.line - this.headerLines);
+
+        if (position.character >= this.firstBytePos && position.character <= this.lastBytePos) {
+            const charOffset = position.character - this.firstBytePos;
+            offset += Math.floor(charOffset / 3);
+            return offset;
+        }
+
+        if (position.character >= this.firstAsciiPos && position.character < this.lastAsciiPos) {
+            offset += position.character - this.firstAsciiPos;
+            return offset;
+        }
+
+        return;
     }
 
     /** Maps byte offset to editor position. */
     getPosition(offset: number, isAscii: boolean = false): vscode.Position {
-        const line = 1 + Math.floor(offset / 16);
-        let character = offset % 16;
+        const normalizedOffset = Math.max(0, offset);
+        const line = this.headerLines + Math.floor(normalizedOffset / 16);
+        let character = normalizedOffset % 16;
         if (isAscii) {
             character += this.firstAsciiPos;
         } else {

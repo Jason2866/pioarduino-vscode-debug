@@ -108,16 +108,28 @@ export const Position = jest.fn().mockImplementation((line: number, character: n
     with: jest.fn()
 }))
 
-export const Range = jest.fn().mockImplementation((startLine: number, startChar: number, endLine: number, endChar: number) => ({
-    start: { line: startLine, character: startChar },
-    end: { line: endLine, character: endChar },
-    isEmpty: jest.fn(),
-    isSingleLine: jest.fn(),
-    contains: jest.fn(),
-    intersection: jest.fn(),
-    union: jest.fn(),
-    with: jest.fn()
-}))
+export const Range = jest.fn().mockImplementation((startOrLine: any, startOrChar: any, endLine?: number, endChar?: number) => {
+    const isPositionLike = (value: any) =>
+        value && typeof value.line === 'number' && typeof value.character === 'number'
+
+    const start = isPositionLike(startOrLine) && isPositionLike(startOrChar)
+        ? { line: startOrLine.line, character: startOrLine.character }
+        : { line: startOrLine, character: startOrChar }
+    const end = isPositionLike(startOrLine) && isPositionLike(startOrChar)
+        ? { line: startOrChar.line, character: startOrChar.character }
+        : { line: endLine, character: endChar }
+
+    return {
+        start,
+        end,
+        isEmpty: jest.fn(),
+        isSingleLine: jest.fn(),
+        contains: jest.fn(),
+        intersection: jest.fn(),
+        union: jest.fn(),
+        with: jest.fn()
+    }
+})
 
 export const ThemeIcon = jest.fn().mockImplementation((id: string, color?: any) => ({
     id,

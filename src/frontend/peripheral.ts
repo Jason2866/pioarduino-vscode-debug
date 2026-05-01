@@ -54,6 +54,7 @@ export class BaseNode {
     public format: NumberFormat = NumberFormat.Auto;
     public description: string;
     public accessType?: AccessType;
+    private cachedTreeNode?: TreeNode;
 
     constructor(public recordType: RecordType) {}
 
@@ -75,6 +76,31 @@ export class BaseNode {
 
     getTreeNode(): TreeNode {
         return null;
+    }
+
+    protected getOrCreateTreeNode(
+        label: string,
+        collapsibleState: vscode.TreeItemCollapsibleState,
+        contextValue: string
+    ): TreeNode {
+        if (!this.cachedTreeNode) {
+            this.cachedTreeNode = new TreeNode(label, collapsibleState, contextValue, this);
+        }
+
+        this.cachedTreeNode.label = label;
+        this.cachedTreeNode.collapsibleState = collapsibleState;
+        this.cachedTreeNode.contextValue = contextValue;
+        this.cachedTreeNode.node = this;
+        this.cachedTreeNode.command = {
+            command: 'platformio-debug.peripherals.selectedNode',
+            arguments: [this],
+            title: 'Selected Node',
+        };
+        this.cachedTreeNode.tooltip = this.description || label;
+        this.cachedTreeNode.iconPath = undefined;
+        this.cachedTreeNode.description = undefined;
+
+        return this.cachedTreeNode;
     }
 
     getCopyValue(): string | null {
@@ -177,11 +203,10 @@ export class PeripheralNode extends BaseNode {
 
     getTreeNode(): TreeNode {
         const label = this.name + '  [' + hexFormat(this.baseAddress) + ']';
-        return new TreeNode(
+        return this.getOrCreateTreeNode(
             label,
             this.expanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
-            'peripheral',
-            this
+            'peripheral'
         );
     }
 
@@ -294,11 +319,10 @@ export class ClusterNode extends BaseNode {
 
     getTreeNode(): TreeNode {
         const label = `${this.name} [${hexFormat(this.offset, 0)}]`;
-        return new TreeNode(
+        return this.getOrCreateTreeNode(
             label,
             this.expanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
-            'cluster',
-            this
+            'cluster'
         );
     }
 
@@ -448,7 +472,7 @@ export class RegisterNode extends BaseNode {
                     : vscode.TreeItemCollapsibleState.Collapsed
                 : vscode.TreeItemCollapsibleState.None;
 
-        const treeNode = new TreeNode(label, collapsible, contextValue, this);
+        const treeNode = this.getOrCreateTreeNode(label, collapsible, contextValue);
 
         // Highlight registers whose value differs from the documented reset value.
         // Recently changed registers get an additional indicator.
@@ -724,7 +748,7 @@ export class FieldNode extends BaseNode {
             contextValue = 'field-ro';
         }
 
-        return new TreeNode(label, vscode.TreeItemCollapsibleState.None, contextValue, this);
+        return this.getOrCreateTreeNode(label, vscode.TreeItemCollapsibleState.None, contextValue);
     }
 
     performUpdate(): Promise<boolean> {
@@ -1454,7 +1478,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
                 if (!fs.existsSync(dir)) {
                     return;
                 }
-                const entries = fs.readdirSync(dir);
+                const entries = fs.readdirSync(dir).sort((a, b) => a.localeCompare(b));
                 for (const entry of entries) {
                     if (entry.toLowerCase().endsWith('.svd')) {
                         candidates.push(path.join(dir, entry));
@@ -1475,7 +1499,7 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
         const pioPackages = path.join(os.homedir(), '.platformio', 'packages');
         try {
             if (fs.existsSync(pioPackages)) {
-                const pkgs = fs.readdirSync(pioPackages);
+                const pkgs = fs.readdirSync(pioPackages).sort((a, b) => a.localeCompare(b));
                 for (const pkg of pkgs) {
                     collect(path.join(pioPackages, pkg, 'svd'));
                 }
@@ -1532,11 +1556,12 @@ export class PeripheralTreeProvider implements vscode.TreeDataProvider<TreeNode>
             return;
         }
 
+        const treeNode = peripheral.getTreeNode();
         peripheral.expanded = true;
         this.refresh();
         if (this.treeView) {
             try {
-                await this.treeView.reveal(peripheral.getTreeNode(), {
+                await this.treeView.reveal(treeNode, {
                     select: true,
                     focus: true,
                     expand: true,

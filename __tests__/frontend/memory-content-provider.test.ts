@@ -120,53 +120,58 @@ describe('MemoryContentProvider', () => {
         test('should map byte offset to position', () => {
             // First row, first byte (hex column)
             const pos1 = provider.getPosition(0, false)
-            expect(pos1.line).toBe(1)
+            expect(pos1.line).toBe(2)
             expect(pos1.character).toBe(10) // firstBytePos
 
             // First row, second byte
             const pos2 = provider.getPosition(1, false)
-            expect(pos2.line).toBe(1)
+            expect(pos2.line).toBe(2)
             expect(pos2.character).toBe(13) // 10 + 3
 
             // Second row, first byte
             const pos3 = provider.getPosition(16, false)
-            expect(pos3.line).toBe(2)
+            expect(pos3.line).toBe(3)
             expect(pos3.character).toBe(10)
         })
 
         test('should map byte offset to ASCII position', () => {
             // First row, first byte (ASCII column)
             const pos1 = provider.getPosition(0, true)
-            expect(pos1.line).toBe(1)
+            expect(pos1.line).toBe(2)
             // ASCII position starts after hex columns
 
             // Second row, first byte in ASCII
             const pos2 = provider.getPosition(16, true)
-            expect(pos2.line).toBe(2)
+            expect(pos2.line).toBe(3)
         })
 
         test('should return undefined for invalid positions', () => {
-            // Line 0 is the header, should return undefined
+            // Header lines clamp to the first row offset
             const offset = provider.getOffset({ line: 0, character: 15 } as any)
-            expect(offset).toBeUndefined()
+            expect(offset).toBe(0)
 
             // Character before first byte position
-            const offset2 = provider.getOffset({ line: 1, character: 5 } as any)
+            const offset2 = provider.getOffset({ line: 2, character: 5 } as any)
             expect(offset2).toBeUndefined()
         })
 
         test('should calculate offset for hex column positions', () => {
             // First byte position in hex column
-            const offset1 = provider.getOffset({ line: 1, character: 10 } as any)
+            const offset1 = provider.getOffset({ line: 2, character: 10 } as any)
             expect(offset1).toBe(0)
 
             // Second byte (each byte takes 3 chars: "00 ")
-            const offset2 = provider.getOffset({ line: 1, character: 13 } as any)
+            const offset2 = provider.getOffset({ line: 2, character: 13 } as any)
             expect(offset2).toBe(1)
 
             // Third byte
-            const offset3 = provider.getOffset({ line: 1, character: 16 } as any)
+            const offset3 = provider.getOffset({ line: 2, character: 16 } as any)
             expect(offset3).toBe(2)
+        })
+
+        test('should treat the separator between hex and ASCII columns as invalid', () => {
+            expect(provider.getOffset({ line: 2, character: 58 } as any)).toBeUndefined()
+            expect(provider.getOffset({ line: 2, character: 59 } as any)).toBeUndefined()
         })
     })
 
@@ -174,15 +179,15 @@ describe('MemoryContentProvider', () => {
         test('should build ranges for single byte', () => {
             const ranges = provider.getRanges(0, 0, false)
             expect(ranges.length).toBeGreaterThan(0)
-            expect(ranges[0].start.line).toBe(1)
+            expect(ranges[0].start.line).toBe(2)
         })
 
         test('should build ranges spanning multiple lines', () => {
             // Bytes 0-20 span 2 lines (16 bytes per line)
             const ranges = provider.getRanges(0, 20, false)
             expect(ranges.length).toBe(2)
-            expect(ranges[0].start.line).toBe(1)
-            expect(ranges[1].start.line).toBe(2)
+            expect(ranges[0].start.line).toBe(2)
+            expect(ranges[1].start.line).toBe(3)
         })
     })
 })

@@ -68,6 +68,7 @@ class PlatformIODebugExtension {
             vscode.commands.registerCommand('platformio-debug.examineMemory', this.examineMemory.bind(this)),
             vscode.commands.registerCommand('platformio-debug.memory.setDataType', this.memorySetDataType.bind(this)),
             vscode.commands.registerCommand('platformio-debug.memory.toggleEndianness', this.memoryToggleEndianness.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.memory.edit', this.memoryWriteByte.bind(this)),
             vscode.commands.registerCommand('platformio-debug.memory.writeByte', this.memoryWriteByte.bind(this)),
             vscode.commands.registerCommand('platformio-debug.viewDisassembly', this.showDisassembly.bind(this)),
             vscode.commands.registerCommand('platformio-debug.setForceDisassembly', this.setForceDisassembly.bind(this)),
@@ -278,6 +279,15 @@ class PlatformIODebugExtension {
             );
     }
 
+    /** Refreshes all open memory editors. */
+    private refreshOpenMemoryEditors(): void {
+        vscode.workspace.textDocuments.forEach((doc) => {
+            if (doc.fileName.endsWith('.dbgmem')) {
+                this.memoryContentProvider.update(doc);
+            }
+        });
+    }
+
     /** Sets the data type for memory interpretation. */
     private memorySetDataType(): void {
         const dataTypes = [
@@ -298,12 +308,7 @@ class PlatformIODebugExtension {
                 const dataType = dataTypes.find(dt => dt.label === selected)?.value;
                 if (dataType) {
                     this.memoryContentProvider.setDataType(dataType);
-                    // Refresh all open memory documents
-                    vscode.workspace.textDocuments.forEach(doc => {
-                        if (doc.fileName.endsWith('.dbgmem')) {
-                            this.memoryContentProvider.update(doc);
-                        }
-                    });
+                    this.refreshOpenMemoryEditors();
                 }
             }
         });
@@ -315,12 +320,7 @@ class PlatformIODebugExtension {
         const endianness = this.memoryContentProvider.getEndianness();
         vscode.window.showInformationMessage(`Memory view endianness: ${endianness}`);
 
-        // Refresh all open memory documents
-        vscode.workspace.textDocuments.forEach(doc => {
-            if (doc.fileName.endsWith('.dbgmem')) {
-                this.memoryContentProvider.update(doc);
-            }
-        });
+        this.refreshOpenMemoryEditors();
     }
 
     /** Writes a byte to memory at the given address. */
@@ -364,12 +364,7 @@ class PlatformIODebugExtension {
             const success = await this.memoryContentProvider.writeByte(address, value);
             if (success) {
                 vscode.window.showInformationMessage(`Wrote 0x${value.toString(16).padStart(2, '0').toUpperCase()} to ${addressInput}`);
-                // Refresh open memory views
-                vscode.workspace.textDocuments.forEach(doc => {
-                    if (doc.fileName.endsWith('.dbgmem')) {
-                        this.memoryContentProvider.update(doc);
-                    }
-                });
+                this.refreshOpenMemoryEditors();
             }
         } else {
             // Direct call with args
@@ -378,6 +373,7 @@ class PlatformIODebugExtension {
                 vscode.window.showInformationMessage(
                     `Wrote 0x${args.value.toString(16).padStart(2, '0').toUpperCase()} to 0x${args.address.toString(16).toUpperCase()}`
                 );
+                this.refreshOpenMemoryEditors();
             }
         }
     }

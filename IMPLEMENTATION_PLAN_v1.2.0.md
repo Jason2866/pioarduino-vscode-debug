@@ -381,7 +381,7 @@ src/
 - [x] Create `diagnostics.ts` with error handling framework
 - [x] Implement diagnostic logging panel
 - [x] Add centralized error message system
-- [x] **IDE Extension**: Add diagnostic configuration to `package.json`
+- [ ] **IDE Extension**: Add diagnostic configuration to `package.json` (pending a linked/verifiable companion IDE change)
 
 ### Phase 2: Memory Editor
 - [x] Add `write-memory` support in `adapter.ts`
@@ -592,6 +592,7 @@ New features should not break:
 - [ ] CHANGELOG.md updated with detailed entries
 
 ### IDE Extension (pioarduino-vscode-ide)
+- [ ] Diagnostic configuration added and verifiable in `package.json`
 - [ ] All new commands registered in `package.json`
 - [ ] New configuration properties added and functional
 - [ ] No conflicts with existing debug commands
