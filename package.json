@@ -10,6 +10,138 @@
     "type": "git",
     "url": "git+https://github.com/Jason2866/pioarduino-vscode-debug.git"
   },
+  "contributes": {
+    "commands": [
+      {
+        "command": "platformio-debug.trace.resolveContext",
+        "title": "Trace: Resolve Context",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.inspectCapture",
+        "title": "Trace: Inspect Capture",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.probeCapture",
+        "title": "Trace: Probe OpenOCD Trace Support",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.startCapture",
+        "title": "Trace: Start Capture",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.stopCapture",
+        "title": "Trace: Stop Capture",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.dumpCapture",
+        "title": "Trace: Dump Capture",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.decode",
+        "title": "Trace: Decode Capture",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.stats",
+        "title": "Trace: Show Stats",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.history",
+        "title": "Trace: Show History",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.profile",
+        "title": "Trace: Show Profile",
+        "category": "PlatformIO Debug"
+      }
+    ],
+    "configuration": {
+      "title": "PlatformIO Debug Trace",
+      "properties": {
+        "platformio-debug.trace.elfPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the firmware ELF used for trace decoding. Empty auto-detects from the active debug session or .pio/build/<env>/."
+        },
+        "platformio-debug.trace.chip": {
+          "type": "string",
+          "default": "",
+          "description": "Trace-capable chip override (e.g. esp32c5, esp32c6, esp32s31). Empty auto-detects from the ELF/board."
+        },
+        "platformio-debug.trace.targetArch": {
+          "type": "string",
+          "default": "",
+          "enum": ["", "riscv", "xtensa"],
+          "description": "Target architecture override. Empty auto-detects from the ELF machine type."
+        },
+        "platformio-debug.trace.coreDir": {
+          "type": "string",
+          "default": "",
+          "description": "PlatformIO core directory. Empty uses PLATFORMIO_CORE_DIR or ~/.platformio."
+        },
+        "platformio-debug.trace.packagesDir": {
+          "type": "string",
+          "default": "",
+          "description": "PlatformIO packages directory for toolchain discovery. Empty uses <coreDir>/packages."
+        },
+        "platformio-debug.trace.buildDir": {
+          "type": "string",
+          "default": "",
+          "description": "Build directory for ELF discovery. Empty auto-detects from platformio.ini."
+        },
+        "platformio-debug.trace.usePlatformIOConfig": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use platformio.ini to resolve build directory and board for trace decoding."
+        },
+        "platformio-debug.trace.gdbPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to riscv32-esp-elf-gdb. Empty auto-detects from the PlatformIO RISC-V toolchain."
+        },
+        "platformio-debug.trace.addr2linePath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to riscv32-esp-elf-addr2line for source line resolution. Empty auto-detects from the RISC-V toolchain."
+        },
+        "platformio-debug.trace.openocdPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to OpenOCD. Empty auto-detects tool-openocd-esp32."
+        },
+        "platformio-debug.trace.romElfPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the chip ROM ELF for layered symbol resolution. Empty auto-detects from tool-esp-rom-elfs or ESP-IDF roms.json."
+        },
+        "platformio-debug.trace.captureTimeoutMs": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Loop-capture duration in milliseconds sent to OpenOCD trace start. 0 uses the firmware default."
+        },
+        "platformio-debug.trace.historyJson": {
+          "type": "boolean",
+          "default": false,
+          "description": "Emit history as JSON instead of the text format."
+        },
+        "platformio-debug.trace.profileFormat": {
+          "type": "string",
+          "default": "folded",
+          "enum": ["folded", "speedscope"],
+          "description": "Profile output format for the Trace: Show Profile command."
+        }
+      }
+    }
+  },
   "scripts": {
     "build": "webpack --mode production",
     "test": "jest",
