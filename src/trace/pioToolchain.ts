@@ -572,15 +572,14 @@ export async function resolveTraceContext(
         warnings.push('No firmware ELF found for trace decoding.');
     }
 
-    // candidate.chip only describes candidate.elfPath. When an explicit ELF
-    // wins over a mismatched candidate (e.g. the requested env's ELF was not
-    // the one given), derive the chip from that ELF's own environment instead.
-    const candidateMatchesElf = candidate !== undefined && pathsEqual(candidate.elfPath, elfPath);
+    // options.chip wins. Otherwise the chip must describe the ELF actually
+    // used: an explicit ELF may belong to a different env than the selected
+    // candidate, so match candidates by path regardless of requested env.
     let chip = options.chip;
-    if (chip === undefined) {
-        if (candidateMatchesElf) {
-            chip = candidate.chip;
-        } else if (elfPath) {
+    if (chip === undefined && elfPath) {
+        const elfCandidate = candidates.find((c) => pathsEqual(c.elfPath, elfPath));
+        chip = elfCandidate?.chip;
+        if (chip === undefined) {
             const envName =
                 envNameFromElfPath(buildDir, elfPath) ??
                 path.basename(elfPath, path.extname(elfPath));

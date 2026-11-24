@@ -22,8 +22,11 @@ export function profileAddressBits(profile: DecoderProfile): number {
 }
 
 export function profilePcFromRaw(profile: DecoderProfile, rawAddress: number): number {
-    // `<<` yields a signed int32; PCs at or above 0x80000000 must stay unsigned.
-    return (rawAddress << profile.iaddress_lsb) >>> 0;
+    // JS `<<` masks the shift count to 5 bits, so compute the shift
+    // arithmetically and keep the low 32 bits of the true product; the result
+    // is unsigned and is 0 when iaddress_lsb >= 32.
+    const shifted = BigInt(rawAddress >>> 0) << BigInt(profile.iaddress_lsb);
+    return Number(BigInt.asUintN(32, shifted));
 }
 
 const ET20 = abi.PacketFormat.EFFICIENT_TRACE_2_0;

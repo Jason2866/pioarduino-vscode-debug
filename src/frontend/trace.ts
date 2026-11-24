@@ -326,7 +326,9 @@ export class TraceFrontend {
             return {
                 ...options,
                 elfPath: context.elfPath ?? options.elfPath,
-                chip: context.chip ?? options.chip,
+                // chip stays the explicitly configured value only: the
+                // discovered context.chip describes the workspace ELF, not
+                // necessarily the capture being decoded.
                 addr2linePath: context.addr2linePath ?? options.addr2linePath,
                 romElfPath: context.romElfPath ?? options.romElfPath,
             };

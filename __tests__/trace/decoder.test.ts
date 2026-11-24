@@ -10,6 +10,7 @@ import {
     PREFIX_SIZE,
 } from '../../src/trace/decoder/framing';
 import * as abi from '../../src/trace/snapshot/abi';
+import { profilePcFromRaw } from '../../src/trace/decoder/params';
 
 function makeBuffer(opts: {
     raw: number[];
@@ -199,5 +200,31 @@ describe('decoder/framing', () => {
         const result = frame(ring);
         expect(result.events.some((e) => e.kind === FramingEventKind.WRAP_BOUNDARY)).toBe(true);
         expect(ring.segments).toHaveLength(2);
+    });
+});
+
+describe('decoder/params profilePcFromRaw', () => {
+    const profile = (iaddress_lsb: number) => ({
+        chip: 'test',
+        packet_format: abi.PacketFormat.EFFICIENT_TRACE_2_0,
+        iaddress_width: 32,
+        iaddress_lsb,
+        privilege_width: 1,
+        ecause_width: 6,
+    });
+
+    it('keeps PCs at or above 0x80000000 unsigned', () => {
+        // 0x40000000 << 1 = 0x80000000
+        expect(profilePcFromRaw(profile(1), 0x40000000)).toBe(0x80000000);
+    });
+
+    it('matches the previous result for small shifts', () => {
+        expect(profilePcFromRaw(profile(1), 0x12345678)).toBe(0x2468acf0);
+        expect(profilePcFromRaw(profile(2), 0x12345678)).toBe(0x48d159e0);
+    });
+
+    it('reduces modulo 2^32 for iaddress_lsb >= 32', () => {
+        expect(profilePcFromRaw(profile(32), 0x12345678)).toBe(0);
+        expect(profilePcFromRaw(profile(40), 0xdeadbeef)).toBe(0);
     });
 });

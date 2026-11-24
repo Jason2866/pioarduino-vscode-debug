@@ -332,9 +332,11 @@ describe('TraceFrontend', () => {
             (vscode.window.showQuickPick as jest.Mock).mockResolvedValue({ label: 'Full decode', last: undefined });
             (vscode.window.showOpenDialog as jest.Mock).mockResolvedValue([{ fsPath: '/tmp/cap.esptrace' }]);
             await invoke('platformio-debug.trace.decode');
+            // The discovered ELF is used, but the discovered chip must not
+            // become a decoding override — only trace.chip config may.
             expect(mockedDecode).toHaveBeenCalledWith(
                 '/tmp/cap.esptrace',
-                expect.objectContaining({ elfPath: '/disc/fw.elf', chip: 'esp32c6' })
+                expect.objectContaining({ elfPath: '/disc/fw.elf', chip: undefined })
             );
         });
 
