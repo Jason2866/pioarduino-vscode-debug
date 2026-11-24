@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { TraceFrontend } from '../../src/frontend/trace';
 import { resolveTraceContext } from '../../src/trace/pioToolchain';
 import { openSession, iterCores } from '../../src/trace/session';
-import { decodeCapture, statsCapture, historyCapture, profileCapture } from '../../src/trace/commands';
+import { decodeCapture, statsCapture, historyCapture, profileCapture, originCapture } from '../../src/trace/commands';
 import { TraceContext } from '../../src/trace/types';
 
 jest.mock('../../src/trace/pioToolchain', () => ({
@@ -19,6 +19,7 @@ jest.mock('../../src/trace/commands', () => ({
     statsCapture: jest.fn(),
     historyCapture: jest.fn(),
     profileCapture: jest.fn(),
+    originCapture: jest.fn(),
 }));
 
 const mockedResolveContext = resolveTraceContext as jest.MockedFunction<typeof resolveTraceContext>;
@@ -27,6 +28,7 @@ const mockedDecode = decodeCapture as jest.MockedFunction<typeof decodeCapture>;
 const mockedStats = statsCapture as jest.MockedFunction<typeof statsCapture>;
 const mockedHistory = historyCapture as jest.MockedFunction<typeof historyCapture>;
 const mockedProfile = profileCapture as jest.MockedFunction<typeof profileCapture>;
+const mockedOrigin = originCapture as jest.MockedFunction<typeof originCapture>;
 
 const TRACE_COMMANDS = [
     'platformio-debug.trace.resolveContext',
@@ -39,6 +41,8 @@ const TRACE_COMMANDS = [
     'platformio-debug.trace.stats',
     'platformio-debug.trace.history',
     'platformio-debug.trace.profile',
+    'platformio-debug.trace.origin',
+    'platformio-debug.trace.openCaptureFolder',
 ];
 
 describe('TraceFrontend', () => {
@@ -257,6 +261,7 @@ describe('TraceFrontend', () => {
             expect(session.customRequest).toHaveBeenCalledWith('trace-start', {
                 file: '/ws/.pio/trace-1.esptrace',
                 timeoutMs: 5000,
+                mode: 'loop',
             });
             expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('Trace capture started'));
         });
@@ -308,6 +313,7 @@ describe('TraceFrontend', () => {
             mockedStats.mockResolvedValue({ lines: ['stats'], summary: 'done' });
             mockedHistory.mockResolvedValue({ lines: ['hist'], summary: 'done' });
             mockedProfile.mockResolvedValue({ lines: ['prof'], summary: 'done' });
+            mockedOrigin.mockResolvedValue({ lines: ['origin'], summary: 'done' });
         });
 
         test('decode opens a document with the decoded output', async () => {
@@ -399,6 +405,35 @@ describe('TraceFrontend', () => {
         test('analysis aborts when the file dialog is cancelled', async () => {
             await invoke('platformio-debug.trace.stats');
             expect(mockedStats).not.toHaveBeenCalled();
+        });
+
+        test('origin opens a document with fault origin analysis', async () => {
+            (vscode.window.showOpenDialog as jest.Mock).mockResolvedValue([{ fsPath: '/tmp/cap.esptrace' }]);
+            traceConfig = { elfPath: '/x.elf', chip: 'esp32c6', core: 0 };
+            await invoke('platformio-debug.trace.origin');
+            expect(mockedOrigin).toHaveBeenCalledWith(
+                '/tmp/cap.esptrace',
+                expect.objectContaining({ elfPath: '/x.elf', chip: 'esp32c6', core: 0 })
+            );
+            expect(vscode.workspace.openTextDocument).toHaveBeenCalled();
+            expect(vscode.window.showTextDocument).toHaveBeenCalled();
+        });
+
+        test('commands exit early when platformio-debug.trace.enabled is false', async () => {
+            traceConfig = { enabled: false };
+            await invoke('platformio-debug.trace.resolveContext');
+            expect(mockedResolveContext).not.toHaveBeenCalled();
+            expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+                expect.stringContaining('disabled')
+            );
+        });
+
+        test('openCaptureFolder opens the configured captureDir', async () => {
+            traceConfig = { captureDir: '/tmp/my-traces' };
+            await invoke('platformio-debug.trace.openCaptureFolder');
+            expect(vscode.env.openExternal).toHaveBeenCalledWith(
+                expect.objectContaining({ fsPath: '/tmp/my-traces' })
+            );
         });
     });
 });

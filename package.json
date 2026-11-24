@@ -61,11 +61,48 @@
         "command": "platformio-debug.trace.profile",
         "title": "Trace: Show Profile",
         "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.origin",
+        "title": "Trace: Show Fault Origin",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.openCaptureFolder",
+        "title": "Trace: Open Capture Folder",
+        "category": "PlatformIO Debug"
       }
     ],
     "configuration": {
       "title": "PlatformIO Debug Trace",
       "properties": {
+        "platformio-debug.trace.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable ESP32 RISC-V trace commands and auto-decode."
+        },
+        "platformio-debug.trace.captureDir": {
+          "type": "string",
+          "default": ".pio/debug-trace",
+          "description": "Directory for trace capture files (relative to workspace root or absolute)."
+        },
+        "platformio-debug.trace.core": {
+          "type": ["integer", "null"],
+          "default": null,
+          "minimum": 0,
+          "description": "Core ID filter for trace analysis commands. Null decodes all cores in the capture."
+        },
+        "platformio-debug.trace.mode": {
+          "type": "string",
+          "default": "loop",
+          "enum": ["loop"],
+          "description": "Trace capture mode sent to OpenOCD trace start."
+        },
+        "platformio-debug.trace.autoDecodeOnStop": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically decode the last capture file when a debug session terminates."
+        },
         "platformio-debug.trace.elfPath": {
           "type": "string",
           "default": "",

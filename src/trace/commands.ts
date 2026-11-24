@@ -5,15 +5,18 @@
 
 import { DiagnosticAccumulator, TraceDiagnostic } from './analysis/diagnostics';
 import { buildHistory, History, isFault } from './analysis/history';
+import { FaultWindowBuilder } from './analysis/origin';
 import { buildProfile, mergeProfiles, Profile } from './analysis/profile';
 import { StatsAccumulator, StatsSnapshot, mergeStatsSnapshots } from './analysis/stats';
 import { CodeImage, ElfImage } from './elf/image';
 import { LayeredImage } from './elf/layered';
 import { SourceResolver } from './elf/resolver';
 import { PrefetchedResolver, resolveSourceLines } from './elf/addr2lineResolver';
+import { resolveSourceLinesWithGdb } from './elf/gdbResolver';
 import { formatDiagnostic, formatEvent, formatNote, formatRawBuffer, GapCoalescer } from './exporters/text';
 import { pyJson } from './exporters/_format';
 import { formatHistory, historyToDict } from './exporters/history';
+import { formatFaultOrigin } from './exporters/origin';
 import { formatStats } from './exporters/statsText';
 import { formatFolded, profileToSpeedscope } from './exporters/profile';
 import { TraceEvent, TraceTrap } from './ir/events';
@@ -35,6 +38,8 @@ export interface CommandOptions {
     elfPath?: string;
     /** addr2line binary for DWARF line resolution; without it source columns stay empty. */
     addr2linePath?: string;
+    /** Optional GDB binary used as an `info line` fallback when addr2line is unavailable or fails. */
+    gdbPath?: string;
     core?: number;
     chip?: string;
     forceElf?: boolean;
@@ -193,16 +198,27 @@ function eventPcs(events: Iterable<TraceEvent>): number[] {
 
 async function buildResolver(view: CoreView, events: TraceEvent[], options: CommandOptions): Promise<SourceResolver> {
     const session = view.session;
-    if (session.elf === undefined || options.addr2linePath === undefined) {
+    if (session.elf === undefined) {
         return sessionResolver(view);
     }
-    try {
-        return await resolveSourceLines(eventPcs(events), options.addr2linePath, session.elf.path);
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        options.warn?.(`addr2line failed (${message}), continuing without source lines`);
-        return sessionResolver(view);
+    const pcs = eventPcs(events);
+    if (options.addr2linePath !== undefined) {
+        try {
+            return await resolveSourceLines(pcs, options.addr2linePath, session.elf.path);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            options.warn?.(`addr2line failed (${message}), trying GDB fallback`);
+        }
     }
+    if (options.gdbPath !== undefined) {
+        try {
+            return await resolveSourceLinesWithGdb(pcs, options.gdbPath, session.elf.path);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            options.warn?.(`gdb info line failed (${message}), continuing without source lines`);
+        }
+    }
+    return sessionResolver(view);
 }
 
 function summaryLine(cores: PreparedCore[]): string {
@@ -440,6 +456,29 @@ export async function profileCapture(capturePath: string, options: CommandOption
         lines.push(pyJson(profileToSpeedscope(titled, capturePath)));
     } else {
         lines.push(...formatFolded(named));
+    }
+    return finish(prepared, lines, options);
+}
+
+// ---------------------------------------------------------------------------
+// origin
+// ---------------------------------------------------------------------------
+
+export async function originCapture(capturePath: string, options: CommandOptions = {}): Promise<CommandResult> {
+    const { cores: views } = prepareCores(capturePath, { ...options, requireElf: true });
+    const prepared: PreparedCore[] = [];
+    const lines: string[] = [];
+    for (let i = 0; i < views.length; i++) {
+        const p = await prepareCoreAsync(views[i], options);
+        prepared.push(p);
+        const builder = new FaultWindowBuilder(p.view.session.image);
+        for (const ev of p.events) {
+            builder.push(ev);
+        }
+        const win = builder.close();
+        writeHeader(lines, p.view, 'origin', i === 0, false);
+        lines.push(...formatFaultOrigin(win, p.view.session.image, p.resolver, { label: `core=${p.view.core.core_id}` }));
+        lines.push(...formatDiagnostic(p.diag));
     }
     return finish(prepared, lines, options);
 }

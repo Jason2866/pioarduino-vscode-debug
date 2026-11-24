@@ -1,6 +1,16 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { iterCores, openSession } from '../trace/session';
-import { CommandOptions, CommandResult, decodeCapture, historyCapture, profileCapture, statsCapture } from '../trace/commands';
+import {
+    CommandOptions,
+    CommandResult,
+    decodeCapture,
+    historyCapture,
+    originCapture,
+    profileCapture,
+    statsCapture,
+} from '../trace/commands';
 import { TraceService } from '../trace/service';
 import { ResolveTraceContextOptions, TraceContext, TraceTargetArch } from '../trace/types';
 
@@ -12,6 +22,7 @@ function asTraceTargetArch(value: unknown): TraceTargetArch | undefined {
 export class TraceFrontend {
     private readonly service = new TraceService();
     private outputChannel: vscode.OutputChannel | undefined;
+    private lastCaptureFile: string | undefined;
 
     register(context: vscode.ExtensionContext): vscode.Disposable[] {
         this.outputChannel = vscode.window.createOutputChannel('PlatformIO Debug Trace');
@@ -28,12 +39,44 @@ export class TraceFrontend {
             vscode.commands.registerCommand('platformio-debug.trace.stats', this.statsCaptureCmd.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.history', this.historyCaptureCmd.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.profile', this.profileCaptureCmd.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.origin', this.originCaptureCmd.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.openCaptureFolder', this.openCaptureFolder.bind(this)),
+            vscode.debug.onDidTerminateDebugSession((session) => {
+                if (
+                    session.type === 'platformio-debug' &&
+                    this.isEnabled() &&
+                    this.getTraceConfig().autoDecodeOnStop === true &&
+                    this.lastCaptureFile &&
+                    fs.existsSync(this.lastCaptureFile)
+                ) {
+                    void this.runTraceAnalysisForFile('decode', this.lastCaptureFile, {}, true);
+                }
+            })
         );
 
         return disposables;
     }
 
+    private getTraceConfig(): Record<string, any> {
+        return vscode.workspace.getConfiguration('platformio-debug').get<Record<string, any>>('trace', {});
+    }
+
+    private isEnabled(): boolean {
+        return this.getTraceConfig().enabled !== false;
+    }
+
+    private ensureEnabled(): boolean {
+        if (this.isEnabled()) {
+            return true;
+        }
+        vscode.window.showInformationMessage('ESP32 trace features are disabled (platformio-debug.trace.enabled).');
+        return false;
+    }
+
     private async resolveContext(): Promise<void> {
+        if (!this.ensureEnabled()) {
+            return;
+        }
         const channel = this.requireOutputChannel();
         try {
             const options = await this.buildResolveOptions();
@@ -56,6 +99,9 @@ export class TraceFrontend {
     }
 
     private async inspectCapture(): Promise<void> {
+        if (!this.ensureEnabled()) {
+            return;
+        }
         const channel = this.requireOutputChannel();
         const uris = await vscode.window.showOpenDialog({
             canSelectFiles: true,
@@ -137,6 +183,9 @@ export class TraceFrontend {
     }
 
     private async probeCapture(): Promise<void> {
+        if (!this.ensureEnabled()) {
+            return;
+        }
         const channel = this.requireOutputChannel();
         try {
             const result = await this.traceRequest('trace-probe');
@@ -166,11 +215,47 @@ export class TraceFrontend {
         return uris?.[0]?.fsPath;
     }
 
-    private async pickCaptureFile(defaultName: string): Promise<string | undefined> {
+    private resolveCaptureDir(): string | undefined {
+        const config = this.getTraceConfig();
+        const raw = typeof config.captureDir === 'string' && config.captureDir.trim() !== ''
+            ? config.captureDir.trim()
+            : path.join('.pio', 'debug-trace');
+        if (path.isAbsolute(raw)) {
+            return raw;
+        }
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        return workspaceFolder ? path.join(workspaceFolder, raw) : undefined;
+    }
+
+    private async openCaptureFolder(): Promise<void> {
+        if (!this.ensureEnabled()) {
+            return;
+        }
+        const dir = this.resolveCaptureDir();
+        if (!dir) {
+            vscode.window.showErrorMessage('No workspace folder is open.');
+            return;
+        }
+        try {
+            fs.mkdirSync(dir, { recursive: true });
+        } catch {
+            // Fall through to openExternal even if mkdir fails.
+        }
+        await vscode.env.openExternal(vscode.Uri.file(dir));
+    }
+
+    private async pickCaptureFile(defaultName: string): Promise<string | undefined> {
+        const dir = this.resolveCaptureDir();
+        if (dir) {
+            try {
+                fs.mkdirSync(dir, { recursive: true });
+            } catch {
+                // Ignore directory creation errors and still show the save dialog.
+            }
+        }
         const uris = await vscode.window.showSaveDialog({
-            defaultUri: workspaceFolder
-                ? vscode.Uri.file(`${workspaceFolder}/.pio/${defaultName}`)
+            defaultUri: dir
+                ? vscode.Uri.file(path.join(dir, defaultName))
                 : undefined,
             filters: { 'ESP Trace': ['esptrace'], 'All files': ['*'] },
             title: 'ESP trace capture file',
@@ -179,6 +264,9 @@ export class TraceFrontend {
     }
 
     private async startCapture(): Promise<void> {
+        if (!this.ensureEnabled()) {
+            return;
+        }
         const channel = this.requireOutputChannel();
         try {
             this.requireDebugSession();
@@ -193,10 +281,12 @@ export class TraceFrontend {
         if (!file) {
             return;
         }
-        const config = vscode.workspace.getConfiguration('platformio-debug').get<Record<string, any>>('trace', {});
+        const config = this.getTraceConfig();
         const timeoutMs = typeof config.captureTimeoutMs === 'number' ? config.captureTimeoutMs : undefined;
+        const mode = config.mode === 'loop' ? 'loop' : 'loop';
         try {
-            await this.traceRequest('trace-start', { file, timeoutMs });
+            await this.traceRequest('trace-start', { file, timeoutMs, mode });
+            this.lastCaptureFile = file;
             vscode.window.showInformationMessage(`Trace capture started: ${file}`);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -205,6 +295,9 @@ export class TraceFrontend {
     }
 
     private async stopCapture(): Promise<void> {
+        if (!this.ensureEnabled()) {
+            return;
+        }
         const channel = this.requireOutputChannel();
         try {
             await this.traceRequest('trace-stop');
@@ -217,6 +310,9 @@ export class TraceFrontend {
     }
 
     private async dumpCapture(): Promise<void> {
+        if (!this.ensureEnabled()) {
+            return;
+        }
         const channel = this.requireOutputChannel();
         try {
             this.requireDebugSession();
@@ -233,6 +329,7 @@ export class TraceFrontend {
         }
         try {
             await this.traceRequest('trace-dump', { file });
+            this.lastCaptureFile = file;
             vscode.window.showInformationMessage(`Trace buffers dumped to ${file}`);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -245,6 +342,9 @@ export class TraceFrontend {
     // ------------------------------------------------------------------
 
     private async decodeCaptureCmd(): Promise<void> {
+        if (!this.ensureEnabled()) {
+            return;
+        }
         const scope = await vscode.window.showQuickPick(
             [
                 { label: 'Full decode', last: undefined as number | undefined },
@@ -272,23 +372,45 @@ export class TraceFrontend {
         await this.runTraceAnalysis('profile', {}, true);
     }
 
+    private async originCaptureCmd(): Promise<void> {
+        await this.runTraceAnalysis('origin', {}, true);
+    }
+
     private async runTraceAnalysis(
-        kind: 'decode' | 'stats' | 'history' | 'profile',
+        kind: 'decode' | 'stats' | 'history' | 'profile' | 'origin',
         extra: Partial<CommandOptions>,
         asDocument: boolean
     ): Promise<void> {
-        const channel = this.requireOutputChannel();
+        if (!this.ensureEnabled()) {
+            return;
+        }
         const file = await this.openCaptureFile(`Select trace capture to ${kind}`);
         if (!file) {
             return;
         }
+        await this.runTraceAnalysisForFile(kind, file, extra, asDocument);
+    }
+
+    private async runTraceAnalysisForFile(
+        kind: 'decode' | 'stats' | 'history' | 'profile' | 'origin',
+        file: string,
+        extra: Partial<CommandOptions>,
+        asDocument: boolean
+    ): Promise<void> {
+        const channel = this.requireOutputChannel();
         channel.appendLine(`> ${kind} ${file}`);
         try {
             const options = await this.resolveToolchainOptions(channel);
-            const config = vscode.workspace.getConfiguration('platformio-debug').get<Record<string, any>>('trace', {});
+            const config = this.getTraceConfig();
+            const core =
+                typeof config.core === 'number' && Number.isInteger(config.core) && config.core >= 0
+                    ? config.core
+                    : undefined;
             const cmdOptions: CommandOptions = {
                 elfPath: options.elfPath,
                 addr2linePath: options.addr2linePath,
+                gdbPath: options.gdbPath,
+                core,
                 chip: options.chip,
                 romElfPath: options.romElfPath,
                 romElfPathHint: options.romElfPathHint,
@@ -309,6 +431,8 @@ export class TraceFrontend {
                 result = await statsCapture(file, cmdOptions);
             } else if (kind === 'history') {
                 result = await historyCapture(file, cmdOptions);
+            } else if (kind === 'origin') {
+                result = await originCapture(file, cmdOptions);
             } else {
                 result = await profileCapture(file, cmdOptions);
             }
@@ -361,6 +485,7 @@ export class TraceFrontend {
                 // cannot bypass the capture's chip-revision selection.
                 romElfPathHint: context.romElfPath,
                 addr2linePath: context.addr2linePath ?? options.addr2linePath,
+                gdbPath: context.gdbPath ?? options.gdbPath,
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);

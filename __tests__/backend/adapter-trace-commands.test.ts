@@ -134,6 +134,20 @@ describe('adapter.ts — trace-* custom requests', () => {
         expect(response.body ?? session.sendResponse.mock.calls[0][0].body).toBeDefined();
     });
 
+    test('trace-status sends `esp riscv_trace status` monitor command', () => {
+        session.miDebugger.sendCommand.mockReturnValue(resolveWith('stopped'));
+        const response = makeResponse();
+
+        session.customRequest('trace-status', response, {});
+
+        expect(session.miDebugger.sendCommand).toHaveBeenCalledWith(
+            'interpreter-exec console "monitor esp riscv_trace status"',
+            false,
+            true
+        );
+        expect(session.sendResponse).toHaveBeenCalled();
+    });
+
     test('trace-start builds start loop command with quoted file and timeout', () => {
         session.miDebugger.sendCommand.mockReturnValue(resolveWith(''));
         const response = makeResponse();

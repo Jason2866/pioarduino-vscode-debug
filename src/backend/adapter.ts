@@ -239,6 +239,7 @@ export class GDBDebugSession extends DebugSession {
                 break;
 
             case 'trace-probe':
+            case 'trace-status':
             case 'trace-start':
             case 'trace-stop':
             case 'trace-dump':
@@ -282,16 +283,20 @@ export class GDBDebugSession extends DebugSession {
             case 'trace-probe':
                 monitorCmd = 'esp riscv_trace';
                 break;
+            case 'trace-status':
+                monitorCmd = 'esp riscv_trace status';
+                break;
             case 'trace-start': {
                 if (!args || !args.file) {
                     this.sendErrorResponse(response, 112, 'trace-start requires a file argument.');
                     return;
                 }
+                const mode = args.mode === 'loop' ? 'loop' : 'loop';
                 const timeout =
                     typeof args.timeoutMs === 'number' && Number.isFinite(args.timeoutMs) && args.timeoutMs > 0
                         ? ` ${Math.floor(args.timeoutMs)}`
                         : '';
-                monitorCmd = `esp riscv_trace start loop ${quotePath(args.file)}${timeout}`;
+                monitorCmd = `esp riscv_trace start ${mode} ${quotePath(args.file)}${timeout}`;
                 break;
             }
             case 'trace-stop':
