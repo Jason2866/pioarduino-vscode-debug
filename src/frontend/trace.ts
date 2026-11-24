@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { iterCores, openSession } from '../trace/session';
 import { TraceService } from '../trace/service';
 import { ResolveTraceContextOptions, TraceContext, TraceTargetArch } from '../trace/types';
 
@@ -18,6 +19,10 @@ export class TraceFrontend {
         disposables.push(
             vscode.commands.registerCommand('platformio-debug.trace.resolveContext', this.resolveContext.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.inspectCapture', this.inspectCapture.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.probeCapture', this.probeCapture.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.startCapture', this.startCapture.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.stopCapture', this.stopCapture.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.dumpCapture', this.dumpCapture.bind(this)),
         );
 
         return disposables;
@@ -58,8 +63,133 @@ export class TraceFrontend {
         if (!uri) {
             return;
         }
-        channel.appendLine(`Trace capture inspection is not implemented yet: ${uri.fsPath}`);
-        vscode.window.showInformationMessage('Trace capture inspection is not implemented yet.');
+        channel.appendLine(`Inspecting trace capture: ${uri.fsPath}`);
+        try {
+            const options = await this.buildResolveOptions();
+            const session = openSession(uri.fsPath, {
+                elfPath: options.elfPath,
+                chip: options.chip,
+                warn: (message) => channel.appendLine(`Warning: ${message}`),
+            });
+            const cap = session.cap;
+            channel.appendLine(`Capture: ${cap.source_path}`);
+            channel.appendLine(`Chip: ${session.chip} (target_id=${cap.target_id ?? 'n/a'})`);
+            channel.appendLine(`Cores: ${cap.cores.map((c) => c.core_id).join(', ') || '(none)'}`);
+            channel.appendLine(`Snapshot ABI: ${cap.abi_major}.${cap.abi_minor}`);
+            for (const view of iterCores(session)) {
+                const buffers = view.session.cap.cores.filter((c) => c.core_id === view.core.core_id);
+                channel.appendLine(
+                    `Core ${view.core.core_id}: head_offset=${view.core.head_offset} ` +
+                        `head_valid=${view.core.head_valid} buffers=${buffers.length}`
+                );
+            }
+            channel.show(true);
+            vscode.window.showInformationMessage(
+                `Trace capture loaded: ${session.chip}, ${cap.cores.length} core(s).`
+            );
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            channel.appendLine(`Failed to inspect capture: ${message}`);
+            channel.show(true);
+            vscode.window.showErrorMessage(`Failed to inspect trace capture: ${message}`);
+        }
+    }
+
+    private requireDebugSession(): vscode.DebugSession {
+        const session = vscode.debug.activeDebugSession;
+        if (!session || session.type !== 'platformio-debug') {
+            throw new Error('No active platformio-debug session. Start a debug session first.');
+        }
+        return session;
+    }
+
+    private async traceRequest(command: string, args?: any): Promise<any> {
+        const session = this.requireDebugSession();
+        const channel = this.requireOutputChannel();
+        channel.appendLine(`> ${command} ${args ? JSON.stringify(args) : ''}`);
+        try {
+            const result = await session.customRequest(command, args ?? {});
+            const output = result && result.output ? result.output : '';
+            if (output) {
+                channel.appendLine(output);
+            }
+            channel.show(true);
+            return result;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            channel.appendLine(`Trace command ${command} failed: ${message}`);
+            channel.show(true);
+            throw error;
+        }
+    }
+
+    private async probeCapture(): Promise<void> {
+        const channel = this.requireOutputChannel();
+        try {
+            const result = await this.traceRequest('trace-probe');
+            const output = (result && result.output ? result.output : '').trim();
+            if (output && !/unknown command|invalid command|unrecognized/i.test(output)) {
+                vscode.window.showInformationMessage('OpenOCD riscv_trace commands appear to be available.');
+            } else {
+                vscode.window.showWarningMessage(
+                    'OpenOCD does not recognize `esp riscv_trace`. It needs a build with CONFIG_ESP_RISCV_TRACE_OPENOCD.'
+                );
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            channel.appendLine(`Trace probe failed: ${message}`);
+        }
+    }
+
+    private async pickCaptureFile(defaultName: string): Promise<string | undefined> {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const uris = await vscode.window.showSaveDialog({
+            defaultUri: workspaceFolder
+                ? vscode.Uri.file(`${workspaceFolder}/.pio/${defaultName}`)
+                : undefined,
+            filters: { 'ESP Trace': ['esptrace'], 'All files': ['*'] },
+            title: 'ESP trace capture file',
+        });
+        return uris?.fsPath;
+    }
+
+    private async startCapture(): Promise<void> {
+        const file = await this.pickCaptureFile(`trace-${Date.now()}.esptrace`);
+        if (!file) {
+            return;
+        }
+        const config = vscode.workspace.getConfiguration('platformio-debug').get<Record<string, any>>('trace', {});
+        const timeoutMs = typeof config.captureTimeoutMs === 'number' ? config.captureTimeoutMs : undefined;
+        try {
+            await this.traceRequest('trace-start', { file, timeoutMs });
+            vscode.window.showInformationMessage(`Trace capture started: ${file}`);
+        } catch {
+            // Error already reported to the trace output channel.
+        }
+    }
+
+    private async stopCapture(): Promise<void> {
+        const channel = this.requireOutputChannel();
+        try {
+            await this.traceRequest('trace-stop');
+            vscode.window.showInformationMessage('Trace capture stopped.');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            channel.appendLine(`Trace stop failed: ${message}`);
+        }
+    }
+
+    private async dumpCapture(): Promise<void> {
+        const file = await this.pickCaptureFile(`trace-dump-${Date.now()}.esptrace`);
+        if (!file) {
+            return;
+        }
+        try {
+            await this.traceRequest('trace-dump', { file });
+            vscode.window.showInformationMessage(`Trace buffers dumped to ${file}`);
+        } catch {
+            // Error already reported to the trace output channel.
+        }
     }
 
     private async buildResolveOptions(): Promise<ResolveTraceContextOptions> {

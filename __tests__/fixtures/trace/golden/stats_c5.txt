@@ -1,0 +1,29 @@
+# esp-riscv-trace stats
+# source            __tests__/fixtures/trace/esp32c5_stop.esptrace
+# chip              esp32c5  target_id=0x0017  revision=0x0065
+# core              0  owner=fw
+# packet_format     efficient_trace_2_0  address_mode=delta
+# memory_mode       loop  wrap_state=inferred_wrapped
+# resync            mode=packet  threshold=128
+#                   wrap_reason=nonzero_tail
+# buffer            capacity=4096  head_offset=832
+# hw_status         fifo=0x00000001  intr=0x00000000  empty=yes  full=no  overflow=no
+# capture           reason=explicit_stop
+# app_elf_sha256    match  sha=e09eeed40648e3d7  path=__tests__/fixtures/trace/esp32c5.elf
+# rom_elf           missing-env  path=none
+# stats             core=0  instructions=48431  denominator=48431  top=20
+#    pct  count  function                          file:line
+   49.98  24206  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31
+   24.97  12092  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32
+   18.73   9069  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:35
+    6.24   3024  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:33
+    0.02      8  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:30
+    0.02      8  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:38
+    0.02      8  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:39
+    0.02      8  workload_task()                   /IDF_PROJECT/main/test_app_main.c:45
+    0.01      4  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:29
+    0.01      4  workload_task()                   /IDF_PROJECT/main/test_app_main.c:44
+# summary           instructions=48431  syncs=3  traps=0  gaps=21
+#                   top_gap_reasons=walker_not_anchored=19, alignment_lost=1, partial_frame=1
+#                   boundaries=wrap=1
+#                   repeated_gaps=walker_not_anchored "format 1 with address before first sync, cannot anchor" x2

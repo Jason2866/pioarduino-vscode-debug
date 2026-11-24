@@ -25,6 +25,8 @@ export class MI2 extends EventEmitter {
     private debugReadyTimeout: any;
     private buffer: string;
     private errbuf: string;
+    private consoleHistory: string[] = [];
+    private static readonly CONSOLE_HISTORY_LIMIT = 512;
 
     constructor(
         public application: string,
@@ -157,6 +159,12 @@ export class MI2 extends EventEmitter {
                                         this.emit('debug-ready');
                                     }
                                 });
+                            }
+                            if (record.type === 'console' || record.type === 'target') {
+                                this.consoleHistory.push(record.content);
+                                if (this.consoleHistory.length > MI2.CONSOLE_HISTORY_LIMIT) {
+                                    this.consoleHistory.splice(0, this.consoleHistory.length - MI2.CONSOLE_HISTORY_LIMIT);
+                                }
                             }
                             this.log(record.type, record.content);
                         } else if (record.type === 'exec') {
@@ -601,11 +609,15 @@ export class MI2 extends EventEmitter {
         this.process.stdin.write(raw + '\n');
     }
 
-    /** Sends numbered MI command; resolves on reply. */
-    sendCommand(command: string, suppressErrors: boolean = false): Promise<MINode> {
+    /** Sends numbered MI command; resolves on reply. Optionally captures console/target stream output. */
+    sendCommand(command: string, suppressErrors: boolean = false, captureConsole: boolean = false): Promise<MINode> {
         const token = this.currentToken++;
+        const consoleStart = this.consoleHistory.length;
         return new Promise((resolve, reject) => {
             this.handlers[token] = (result: MINode) => {
+                if (captureConsole) {
+                    result.consoleOutput = this.consoleHistory.slice(consoleStart).join('');
+                }
                 if (result && result.resultRecords && result.resultRecords.resultClass === 'error') {
                     if (suppressErrors) {
                         this.log('stderr', `WARNING: Error executing command '${command}'`);

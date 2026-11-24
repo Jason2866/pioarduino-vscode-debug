@@ -6,3 +6,6 @@ export * from './packetsPt10';
 export * from './packetsEt20';
 export * from './encoding';
 export * from './instruction';
+export * from './reconstruct';
+export * from './pipeline';
+export * from './semantics';

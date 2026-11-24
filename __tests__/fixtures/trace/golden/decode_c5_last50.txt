@@ -1,0 +1,71 @@
+# esp-riscv-trace decode
+# source            __tests__/fixtures/trace/esp32c5_stop.esptrace
+# chip              esp32c5  target_id=0x0017  revision=0x0065
+# core              0  owner=fw
+# packet_format     efficient_trace_2_0  address_mode=delta
+# memory_mode       loop  wrap_state=inferred_wrapped
+# resync            mode=packet  threshold=128
+#                   wrap_reason=nonzero_tail
+# buffer            capacity=4096  head_offset=832
+# hw_status         fifo=0x00000001  intr=0x00000000  empty=yes  full=no  overflow=no
+# capture           reason=explicit_stop
+# app_elf_sha256    match  sha=e09eeed40648e3d7  path=__tests__/fixtures/trace/esp32c5.elf
+# rom_elf           missing-env  path=none
+# window            instructions=50  omitted=48381  ends_at=end_of_trace
+0x408023bc  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]
+0x408023be  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]
+0x408023c0  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]  # branch=taken
+0x408023a6  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:35  [frame seg=0 off=3251 idx=22731]
+0x408023a8  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:35  [frame seg=0 off=3251 idx=22731]
+0x408023aa  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:35  [frame seg=0 off=3251 idx=22731]
+0x408023ac  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023ae  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b0  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b2  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b4  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b8  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]  # branch=not_taken
+0x408023bc  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]
+0x408023be  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]
+0x408023c0  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]  # branch=taken
+0x408023a6  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:35  [frame seg=0 off=3251 idx=22731]
+0x408023a8  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:35  [frame seg=0 off=3251 idx=22731]
+0x408023aa  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:35  [frame seg=0 off=3251 idx=22731]
+0x408023ac  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023ae  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b0  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b2  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b4  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b8  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]  # branch=not_taken
+0x408023bc  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]
+0x408023be  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]
+0x408023c0  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]  # branch=not_taken
+0x408023c2  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:33  [frame seg=0 off=3251 idx=22731]
+0x408023c4  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:33  [frame seg=0 off=3251 idx=22731]
+0x408023c6  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:33  [frame seg=0 off=3251 idx=22731]  # jump next=0x408023ac
+0x408023ac  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023ae  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b0  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b2  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b4  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b8  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]  # branch=not_taken
+0x408023bc  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]
+0x408023be  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]
+0x408023c0  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]  # branch=taken
+0x408023a6  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:35  [frame seg=0 off=3251 idx=22731]
+0x408023a8  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:35  [frame seg=0 off=3251 idx=22731]
+0x408023aa  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:35  [frame seg=0 off=3251 idx=22731]
+0x408023ac  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023ae  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b0  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b2  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b4  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]
+0x408023b8  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:31  [frame seg=0 off=3251 idx=22731]  # branch=not_taken
+0x408023bc  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]
+0x408023be  branchy_work()                    /IDF_PROJECT/main/test_app_main.c:32  [frame seg=0 off=3251 idx=22731]
+--- gap partial_frame "frame cannot be reconstructed (5 of 8 bytes at physical-region end)" [frame seg=0 off=3259] ---
+--- boundary wrap "circular trace memory wraps here" [frame seg=1 off=3264] ---
+--- gap walker_not_anchored x16 ["format 1 with address before first sync, cannot anchor" x12, "format 2 before first sync, cannot anchor" x4] [frames seg=1 off=3761..4084] ---
+# summary           instructions=48431  syncs=3  traps=0  gaps=21
+#                   top_gap_reasons=walker_not_anchored=19, alignment_lost=1, partial_frame=1
+#                   boundaries=wrap=1
+#                   repeated_gaps=walker_not_anchored "format 1 with address before first sync, cannot anchor" x2

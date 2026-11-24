@@ -1,0 +1,282 @@
+# esp-riscv-trace stats
+# source            __tests__/fixtures/trace/esp32c6_panic_stop.esptrace
+# chip              esp32c6  target_id=0x000d  revision=0x0001
+# core              0  owner=fw
+# packet_format     processor_trace_1_0  address_mode=delta
+# memory_mode       loop  wrap_state=inferred_wrapped
+# resync            mode=packet  threshold=128
+#                   wrap_reason=nonzero_tail
+# buffer            capacity=4096  head_offset=3964
+# hw_status         fifo=0x00000001  intr=0x00000000  empty=yes  full=no  overflow=no
+# capture           reason=panic
+# app_elf_sha256    match  sha=9497e11f522a9a7e  path=__tests__/fixtures/trace/esp32c6.elf
+# rom_elf           missing-env  path=none
+# stats             core=0  instructions=1951  denominator=1951  top=20
+#    pct  count  function                          file:line
+    4.31     84  getc()                            <unresolved>
+    3.54     69  __bufio_get()                     <unresolved>
+    2.92     57  getc_unlocked()                   <unresolved>
+    1.85     36  xTaskGetSchedulerState()          /IDF/components/freertos/FreeRTOS-Kernel/tasks.c:5023
+    1.85     36  xTaskGetSchedulerState()          /IDF/components/freertos/FreeRTOS-Kernel/tasks.c:5029
+    1.54     30  _panic_handler()                  /IDF/components/riscv/vectors.S:245
+    1.54     30  xQueueGenericSend()               /IDF/components/freertos/FreeRTOS-Kernel/queue.c:931
+    1.44     28  prvCopyDataToQueue()              /IDF/components/freertos/FreeRTOS-Kernel/queue.c:2454
+    1.44     28  vPortExitCritical()               /IDF/components/freertos/FreeRTOS-Kernel/portable/riscv/port.c:680
+    1.44     28  vPortExitCritical()               /IDF/components/freertos/FreeRTOS-Kernel/portable/riscv/port.c:686
+    1.44     28  xQueueGenericSend()               /IDF/components/freertos/FreeRTOS-Kernel/queue.c:1168
+    1.38     27  lock_acquire_generic()            /IDF/components/esp_libc/src/locks.c:126
+    1.23     24  prvCopyDataToQueue()              /IDF/components/freertos/FreeRTOS-Kernel/queue.c:2531
+    1.23     24  read_command()                    /IDF_PROJECT/main/test_app_main.c:64
+    1.23     24  vPortEnterCritical()              /IDF/components/freertos/FreeRTOS-Kernel/portable/riscv/port.c:657
+    1.23     24  vPortEnterCritical()              /IDF/components/freertos/FreeRTOS-Kernel/portable/riscv/port.c:662
+    1.23     24  xTaskGetSchedulerState()          /IDF/components/freertos/FreeRTOS-Kernel/tasks.c:5031
+    1.08     21  lock_acquire_generic()            /IDF/components/esp_libc/src/locks.c:165
+    1.08     21  vPortExitCritical()               /IDF/components/freertos/FreeRTOS-Kernel/portable/riscv/port.c:677
+    1.08     21  vPortExitCritical()               /IDF/components/freertos/FreeRTOS-Kernel/portable/riscv/port.c:679
+#                   unresolved_pcs=line=222
+# blocks            distinct_entry_pcs=165
+# getc()
+#          count  entry_pc
+               4  0x4200f534
+               3  0x4200f4fe
+               3  0x4200f50e
+               3  0x4200f516
+               3  0x4200f51e
+               3  0x4200f522
+               3  0x4200f52c
+# __bufio_get()
+#          count  entry_pc
+               3  0x4200f334
+               3  0x4200f344
+               3  0x4200f348
+               3  0x4200f37c
+# getc_unlocked()
+#          count  entry_pc
+               3  0x4200f4ae
+               3  0x4200f4c4
+               3  0x4200f4d0
+               3  0x4200f4da
+               3  0x4200f4de
+# xTaskGetSchedulerState()
+#          count  entry_pc
+              12  0x408061f2
+              12  0x408061fc
+              12  0x4080620a
+# _panic_handler()
+#          count  entry_pc
+               1  0x40800102
+               1  0x4080017e
+# xQueueGenericSend()
+#          count  entry_pc
+               4  0x420121cc
+               4  0x420121de
+               4  0x420121f4
+               4  0x420121fc
+               4  0x42012222
+               4  0x42012226
+               3  0x420120fe
+               3  0x42012114
+               3  0x42012116
+               3  0x4201211c
+               3  0x42012124
+               3  0x42012128
+               3  0x42012150
+               3  0x42012274
+               3  0x4201227c
+# prvCopyDataToQueue()
+#          count  entry_pc
+               4  0x40805cf4
+               4  0x40805d08
+               4  0x40805d0e
+               4  0x40805d20
+               4  0x40805d2a
+# vPortExitCritical()
+#          count  entry_pc
+               7  0x40805a82
+               7  0x40805a90
+               7  0x40805a9a
+               7  0x40805aae
+               7  0x40805ad4
+               7  0x40805ade
+# lock_acquire_generic()
+#          count  entry_pc
+               3  0x40801b2e
+               3  0x40801b44
+               3  0x40801b48
+               3  0x40801b4e
+               3  0x40801b80
+               3  0x40801b86
+               3  0x40801bde
+               3  0x40801bf4
+               3  0x40801c00
+# read_command()
+#          count  entry_pc
+               4  0x42009aa8
+               4  0x42009aae
+               3  0x42009aa0
+               3  0x42009ad6
+               3  0x42009ade
+               1  0x42009ac2
+               1  0x42009ac4
+# vPortEnterCritical()
+#          count  entry_pc
+               6  0x40805a54
+               6  0x40805a5a
+               6  0x40805a72
+               6  0x40805a78
+# __bufio_setdir_locked()
+#          count  entry_pc
+               3  0x4200f2ba
+               3  0x4200f2da
+# __retarget_lock_acquire_recursi~
+#          count  entry_pc
+               3  0x40801de6
+               3  0x40801df2
+               3  0x40801e00
+               3  0x40801e04
+# __retarget_lock_release_recursi~
+#          count  entry_pc
+               4  0x40801e9a
+               3  0x40801e8e
+               3  0x40801e96
+# _lock_acquire_recursive()
+#          count  entry_pc
+               3  0x40801d24
+               3  0x40801d2e
+# _lock_release_recursive()
+#          count  entry_pc
+               4  0x40801d6a
+               3  0x40801d62
+# _vector_table()
+#          count  entry_pc
+               1  0x40800000
+# abort()
+#          count  entry_pc
+               1  0x40804e98
+# app_main()
+#          count  entry_pc
+               1  0x42009b72
+               1  0x42009ba8
+               1  0x42009bba
+# cache_hal_is_cache_enabled()
+#          count  entry_pc
+               1  0x40802580
+               1  0x40802586
+# check_lock_nonzero()
+#          count  entry_pc
+               6  0x40801b02
+               6  0x40801b08
+# esp_cpu_compare_and_set()
+#          count  entry_pc
+               1  0x40803c64
+               1  0x40803c70
+               1  0x40803c76
+# esp_panic_handler_inst_trace_st~
+#          count  entry_pc
+               1  0x4200883e
+               1  0x42008856
+               1  0x42008858
+               1  0x4200885c
+               1  0x4200886e
+               1  0x42008882
+# lock_release_generic()
+#          count  entry_pc
+               4  0x40801c42
+               4  0x40801c94
+               3  0x40801c08
+               3  0x40801c18
+               3  0x40801c1e
+               3  0x40801c22
+               3  0x40801c76
+               3  0x40801c8c
+# panic_enable_cache()
+#          count  entry_pc
+               1  0x40800ca2
+               1  0x40800ca8
+               1  0x40800caa
+# panic_handler()
+#          count  entry_pc
+               1  0x420022be
+               1  0x420022d6
+# pvTaskIncrementMutexHeldCount()
+#          count  entry_pc
+               3  0x420132e0
+               3  0x420132ea
+# s_get_cache_state()
+#          count  entry_pc
+               1  0x40802468
+               1  0x40802472
+               1  0x40802478
+               1  0x408024b0
+               1  0x408024b6
+               1  0x408024bc
+# spi_flash_cache_enabled()
+#          count  entry_pc
+               1  0x40800982
+               1  0x4080098e
+# strcmp()
+#          count  entry_pc
+               1  0x40805236
+               1  0x40805256
+               1  0x4080525a
+               1  0x4080531c
+               1  0x40805324
+# vPortClearInterruptMaskFromISR()
+#          count  entry_pc
+               7  0x40805a44
+# xPortSetInterruptMaskFromISR()
+#          count  entry_pc
+               6  0x40805b44
+# xQueueGiveMutexRecursive()
+#          count  entry_pc
+               4  0x42012398
+               4  0x420123ce
+               4  0x420123dc
+               3  0x42012380
+               3  0x4201238c
+               3  0x42012392
+               3  0x420123c6
+               3  0x420123d2
+# xQueueSemaphoreTake()
+#          count  entry_pc
+               3  0x420123de
+               3  0x420123ee
+               3  0x420123f2
+               3  0x420123fa
+               3  0x420123fe
+               3  0x42012478
+               3  0x42012480
+               3  0x42012484
+               3  0x4201248c
+               3  0x42012492
+               3  0x42012496
+               3  0x420124bc
+               3  0x4201250e
+               3  0x42012516
+# xQueueTakeMutexRecursive()
+#          count  entry_pc
+               3  0x420125a2
+               3  0x420125b2
+               3  0x420125b8
+               3  0x420125bc
+               3  0x420125c2
+               3  0x420125c4
+               3  0x420125f8
+# xTaskGetCurrentTaskHandle()
+#          count  entry_pc
+               6  0x42012f94
+# xTaskPriorityDisinherit()
+#          count  entry_pc
+               4  0x420130a6
+               4  0x420130b2
+               4  0x420130be
+               4  0x420130c2
+               4  0x420130d0
+# xt_unhandled_exception()
+#          count  entry_pc
+               1  0x40800cd2
+               1  0x40800cdc
+# summary           instructions=1951  syncs=3  traps=1  gaps=4
+#                   top_gap_reasons=pc_out_of_image=2, framing_error=1, untraced=1
+#                   warnings=no_anchor=1
+#                   boundaries=wrap=1

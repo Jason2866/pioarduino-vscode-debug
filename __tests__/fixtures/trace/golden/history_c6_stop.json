@@ -1,0 +1,213 @@
+{
+  "command": "history",
+  "cores": [
+    {
+      "core": 0,
+      "chip": "esp32c6",
+      "source": "__tests__/fixtures/trace/esp32c6_stop.esptrace",
+      "elf_sha256_status": "match",
+      "summary": {
+        "instructions": 49109,
+        "syncs": 4,
+        "traps": 0,
+        "gaps": 3
+      },
+      "history": {
+        "omitted": 0,
+        "instructions": 49109,
+        "fault": null,
+        "items": [
+          {
+            "kind": "gap",
+            "depth": 0,
+            "segment": -1,
+            "instructions": 0,
+            "pc": null,
+            "target": null,
+            "target_inferred": false,
+            "site": null,
+            "dest": null,
+            "cause": null,
+            "cause_name": null,
+            "tval": null,
+            "detail": "alignment_lost"
+          },
+          {
+            "kind": "start",
+            "depth": 1,
+            "segment": 0,
+            "instructions": 1588,
+            "pc": null,
+            "target": "0x40801ef0",
+            "target_inferred": false,
+            "site": null,
+            "dest": {
+              "function": "branchy_work",
+              "file": "/IDF_PROJECT/main/test_app_main.c",
+              "line": 32
+            },
+            "cause": null,
+            "cause_name": null,
+            "tval": null,
+            "detail": null
+          },
+          {
+            "kind": "loop",
+            "count": 3,
+            "instructions": 24040,
+            "body": [
+              {
+                "kind": "return",
+                "depth": 0,
+                "segment": 0,
+                "instructions": 3,
+                "pc": "0x40801f06",
+                "target": "0x42009a78",
+                "target_inferred": false,
+                "site": {
+                  "function": "branchy_work",
+                  "file": "/IDF_PROJECT/main/test_app_main.c",
+                  "line": 39
+                },
+                "dest": {
+                  "function": "workload_task",
+                  "file": "/IDF_PROJECT/main/test_app_main.c",
+                  "line": 44
+                },
+                "cause": null,
+                "cause_name": null,
+                "tval": null,
+                "detail": null
+              },
+              {
+                "kind": "call",
+                "depth": 0,
+                "segment": 0,
+                "instructions": 7,
+                "pc": "0x42009a74",
+                "target": "0x40801ecc",
+                "target_inferred": false,
+                "site": {
+                  "function": "workload_task",
+                  "file": "/IDF_PROJECT/main/test_app_main.c",
+                  "line": 45
+                },
+                "dest": {
+                  "function": "branchy_work",
+                  "file": "/IDF_PROJECT/main/test_app_main.c",
+                  "line": 29
+                },
+                "cause": null,
+                "cause_name": null,
+                "tval": null,
+                "detail": null
+              }
+            ]
+          },
+          {
+            "kind": "gap",
+            "depth": 1,
+            "segment": 0,
+            "instructions": 0,
+            "pc": null,
+            "target": null,
+            "target_inferred": false,
+            "site": null,
+            "dest": null,
+            "cause": null,
+            "cause_name": null,
+            "tval": null,
+            "detail": "partial_frame"
+          },
+          {
+            "kind": "start",
+            "depth": 1,
+            "segment": 1,
+            "instructions": 3076,
+            "pc": null,
+            "target": "0x40801ef0",
+            "target_inferred": false,
+            "site": null,
+            "dest": {
+              "function": "branchy_work",
+              "file": "/IDF_PROJECT/main/test_app_main.c",
+              "line": 32
+            },
+            "cause": null,
+            "cause_name": null,
+            "tval": null,
+            "detail": null
+          },
+          {
+            "kind": "loop",
+            "count": 2,
+            "instructions": 20405,
+            "body": [
+              {
+                "kind": "return",
+                "depth": 0,
+                "segment": 1,
+                "instructions": 3,
+                "pc": "0x40801f06",
+                "target": "0x42009a78",
+                "target_inferred": false,
+                "site": {
+                  "function": "branchy_work",
+                  "file": "/IDF_PROJECT/main/test_app_main.c",
+                  "line": 39
+                },
+                "dest": {
+                  "function": "workload_task",
+                  "file": "/IDF_PROJECT/main/test_app_main.c",
+                  "line": 44
+                },
+                "cause": null,
+                "cause_name": null,
+                "tval": null,
+                "detail": null
+              },
+              {
+                "kind": "call",
+                "depth": 0,
+                "segment": 1,
+                "instructions": 8387,
+                "pc": "0x42009a74",
+                "target": "0x40801ecc",
+                "target_inferred": false,
+                "site": {
+                  "function": "workload_task",
+                  "file": "/IDF_PROJECT/main/test_app_main.c",
+                  "line": 45
+                },
+                "dest": {
+                  "function": "branchy_work",
+                  "file": "/IDF_PROJECT/main/test_app_main.c",
+                  "line": 29
+                },
+                "cause": null,
+                "cause_name": null,
+                "tval": null,
+                "detail": null
+              }
+            ]
+          },
+          {
+            "kind": "gap",
+            "depth": 1,
+            "segment": 1,
+            "instructions": 0,
+            "pc": null,
+            "target": null,
+            "target_inferred": false,
+            "site": null,
+            "dest": null,
+            "cause": null,
+            "cause_name": null,
+            "tval": null,
+            "detail": "untraced"
+          }
+        ]
+      }
+    }
+  ]
+}
