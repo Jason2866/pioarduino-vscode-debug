@@ -260,7 +260,14 @@ describe('RegisterTreeProvider', () => {
         await flush();
         provider.debugSessionTerminated();
         expect(provider.dumpSettings()).toEqual([]);
-        expect(provider.getChildren()[0].label).toBe('Loading...');
+        // getChildren schedules fetchRegisterList via setTimeout when unloaded;
+        // keep it fake so the pending callback cannot fire in a later test.
+        jest.useFakeTimers();
+        try {
+            expect(provider.getChildren()[0].label).toBe('Loading...');
+        } finally {
+            jest.useRealTimers();
+        }
     });
 
     test('debugStopped refetches only when the view was expanded', async () => {

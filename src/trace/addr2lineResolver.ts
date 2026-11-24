@@ -147,9 +147,12 @@ export class PersistentAddr2line {
 
         const proc = this.ensureProcess();
         const stdout = proc.stdout!;
+        // Decode once per stream so a multibyte character split across chunks
+        // (e.g. a non-ASCII filename) is not corrupted per-chunk.
+        stdout.setEncoding('utf8');
 
         let batchTimer: ReturnType<typeof setTimeout> | undefined;
-        let onData: ((chunk: Buffer) => void) | undefined;
+        let onData: ((chunk: string) => void) | undefined;
 
         const cleanup = (): void => {
             if (batchTimer !== undefined) {
@@ -178,8 +181,8 @@ export class PersistentAddr2line {
             this.drainQueue();
         }, BATCH_TIMEOUT_MS);
 
-        onData = (chunk: Buffer): void => {
-            this.stdoutBuffer += chunk.toString('utf-8');
+        onData = (chunk: string): void => {
+            this.stdoutBuffer += chunk;
 
             // Done when every address plus the sentinel header arrived; the
             // sentinel's own body is irrelevant.

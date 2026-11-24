@@ -38,4 +38,32 @@ describe('PersistentAddr2line', () => {
             resolver.dispose();
         }
     });
+
+    test('reassembles a multibyte filename split across stdout chunks', async () => {
+        // 'é' is 0xC3 0xA9 in UTF-8; emit the two bytes in separate writes so
+        // they can arrive as distinct stream chunks.
+        fs.writeFileSync(fakeAddr2line, [
+            '#!/bin/sh',
+            'while IFS= read -r addr; do',
+            '  printf \'%s\\n\' "$addr"',
+            '  printf \'main\\n\'',
+            '  printf \'/tmp/caf\'',
+            '  printf \'\\303\'',
+            '  sleep 0.05',
+            '  printf \'\\251.cpp:7\\n\'',
+            'done',
+            '',
+        ].join('\n'));
+        fs.chmodSync(fakeAddr2line, 0o755);
+
+        const resolver = new PersistentAddr2line(fakeAddr2line, '/fake/firmware.elf');
+        try {
+            const results = await resolver.resolveBatch(['0x1000']);
+            expect(results).toEqual([
+                { address: '0x1000', function: 'main', file: '/tmp/café.cpp', line: '7' },
+            ]);
+        } finally {
+            resolver.dispose();
+        }
+    });
 });

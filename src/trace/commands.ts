@@ -18,7 +18,7 @@ import { formatStats } from './exporters/statsText';
 import { formatFolded, profileToSpeedscope } from './exporters/profile';
 import { TraceEvent, TraceTrap } from './ir/events';
 import { CoreView, Session, UsageError, iterCores, openSession } from './session';
-import { RomStatus, resolveRomElf } from './elf/rom';
+import { RomStatus, resolveRomElf, romElfFileRevision } from './elf/rom';
 import * as fs from 'fs';
 
 export const EXIT_OK = 0;
@@ -39,6 +39,13 @@ export interface CommandOptions {
     forceElf?: boolean;
     requireElf?: boolean;
     romElfPath?: string;
+    /**
+     * Auto-discovered ROM ELF (e.g. PlatformIO `tool-esp-rom-elfs`). Used only
+     * when revision-aware ESP-IDF resolution finds nothing and the file's
+     * `_rev<N>` does not exceed the capture's chip revision; never overrides
+     * an explicit `romElfPath`.
+     */
+    romElfPathHint?: string;
     /** decode */
     debug?: boolean;
     last?: number;
@@ -71,6 +78,20 @@ interface PreparedCore {
     diag: TraceDiagnostic;
 }
 
+/**
+ * A discovered ROM ELF is revision-compatible when its `_rev<N>` is at most
+ * the capture's chip revision. `_rev<N>` follows the same major*100+minor
+ * encoding as roms.json revisions. Unversioned files are only trusted when
+ * the capture revision is unknown (0).
+ */
+function romElfHintCompatible(hint: string, chipRevision: number): boolean {
+    if (chipRevision <= 0) {
+        return true;
+    }
+    const rev = romElfFileRevision(hint);
+    return rev !== undefined && rev <= chipRevision;
+}
+
 /** Load the session, select cores and materialize each core's events once. */
 function prepareCores(capturePath: string, options: CommandOptions): { session: Session; cores: CoreView[] } {
     const session = openSession(capturePath, {
@@ -91,7 +112,19 @@ function prepareCores(capturePath: string, options: CommandOptions): { session: 
             session.romElfPath = options.romElfPath;
             session.romElfStatus = fs.existsSync(options.romElfPath) ? RomStatus.PROVIDED : RomStatus.NOT_FOUND;
         } else {
-            const [romPath, status] = resolveRomElf(session.chip, revision);
+            let [romPath, status] = resolveRomElf(session.chip, revision);
+            // Discovered ROM ELFs (e.g. PlatformIO tool-esp-rom-elfs) are only
+            // a fallback: they must not bypass the revision-aware ESP-IDF
+            // lookup, and their `_rev<N>` must not exceed the capture's chip
+            // revision (next-lower semantics, mirroring selectRomRevision).
+            if (
+                romPath === undefined &&
+                options.romElfPathHint !== undefined &&
+                romElfHintCompatible(options.romElfPathHint, revision)
+            ) {
+                romPath = options.romElfPathHint;
+                status = RomStatus.AUTO;
+            }
             session.romElfPath = romPath;
             session.romElfStatus = status;
             if (status === RomStatus.MISSING_ENV) {

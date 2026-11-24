@@ -327,16 +327,23 @@ describe('TraceFrontend', () => {
             mockedResolveContext.mockResolvedValue({
                 elfPath: '/disc/fw.elf',
                 chip: 'esp32c6',
+                romElfPath: '/disc/esp32c6_rev3_rom.elf',
                 warnings: [],
             } as TraceContext);
             (vscode.window.showQuickPick as jest.Mock).mockResolvedValue({ label: 'Full decode', last: undefined });
             (vscode.window.showOpenDialog as jest.Mock).mockResolvedValue([{ fsPath: '/tmp/cap.esptrace' }]);
             await invoke('platformio-debug.trace.decode');
             // The discovered ELF is used, but the discovered chip must not
-            // become a decoding override — only trace.chip config may.
+            // become a decoding override — only trace.chip config may. The
+            // discovered ROM ELF travels as a hint, not an explicit override.
             expect(mockedDecode).toHaveBeenCalledWith(
                 '/tmp/cap.esptrace',
-                expect.objectContaining({ elfPath: '/disc/fw.elf', chip: undefined })
+                expect.objectContaining({
+                    elfPath: '/disc/fw.elf',
+                    chip: undefined,
+                    romElfPath: undefined,
+                    romElfPathHint: '/disc/esp32c6_rev3_rom.elf',
+                })
             );
         });
 

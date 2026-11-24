@@ -80,6 +80,12 @@ export function getRomElfPath(target: string, chipRev: number, env: NodeJS.Proce
     return path.join(romElfDir, `${target}_rev${selectedRev}_rom.elf`);
 }
 
+/** Revision encoded in a `<chip>_rev<N>[_rom].elf`-style filename, if present. */
+export function romElfFileRevision(romElfPath: string): number | undefined {
+    const match = /_rev(\d+)/.exec(path.basename(romElfPath));
+    return match ? parseInt(match[1], 10) : undefined;
+}
+
 export function resolveRomElf(
     chip: string,
     chipRevision: number,

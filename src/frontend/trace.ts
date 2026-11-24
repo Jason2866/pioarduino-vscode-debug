@@ -267,6 +267,7 @@ export class TraceFrontend {
                 addr2linePath: options.addr2linePath,
                 chip: options.chip,
                 romElfPath: options.romElfPath,
+                romElfPathHint: options.romElfPathHint,
                 warn: (message) => channel.appendLine(`Warning: ${message}`),
                 ...extra,
             };
@@ -316,7 +317,9 @@ export class TraceFrontend {
      * `platformio-debug.trace.*` settings are empty. Falls back to the
      * configured values when discovery fails.
      */
-    private async resolveToolchainOptions(channel: vscode.OutputChannel): Promise<ResolveTraceContextOptions> {
+    private async resolveToolchainOptions(
+        channel: vscode.OutputChannel
+    ): Promise<ResolveTraceContextOptions & { romElfPathHint?: string }> {
         const options = await this.buildResolveOptions();
         try {
             const context = await this.service.resolveContext(options);
@@ -329,8 +332,11 @@ export class TraceFrontend {
                 // chip stays the explicitly configured value only: the
                 // discovered context.chip describes the workspace ELF, not
                 // necessarily the capture being decoded.
+                // romElfPath likewise stays the explicit setting; the
+                // discovered ROM ELF travels as a revision-checked hint so it
+                // cannot bypass the capture's chip-revision selection.
+                romElfPathHint: context.romElfPath,
                 addr2linePath: context.addr2linePath ?? options.addr2linePath,
-                romElfPath: context.romElfPath ?? options.romElfPath,
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
