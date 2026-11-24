@@ -47,8 +47,13 @@ describe('MemoryTreeProvider', () => {
     });
 
     test('pushHistory adds entries once and refreshes', () => {
+        const fire = (provider as any)._onDidChangeTreeData.fire as jest.Mock;
         provider.pushHistory('0x1000', '16');
+        expect(fire).toHaveBeenCalledTimes(1);
         provider.pushHistory('0x1000', '16');
+        expect(fire).toHaveBeenCalledTimes(1);
+        provider.refresh();
+        expect(fire).toHaveBeenCalledTimes(2);
         expect(provider.dumpSettings()).toEqual(['0x1000+16']);
         const children = provider.getChildren();
         expect(children[0].command.arguments).toEqual(['0x1000', '16']);

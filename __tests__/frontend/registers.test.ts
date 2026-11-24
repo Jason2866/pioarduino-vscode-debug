@@ -204,10 +204,13 @@ describe('RegisterTreeProvider', () => {
 
     test('getChildren returns a Loading node before registers arrive', () => {
         jest.useFakeTimers();
-        const children = provider.getChildren();
-        expect(children.length).toBe(1);
-        expect(children[0].label).toBe('Loading...');
-        jest.useRealTimers();
+        try {
+            const children = provider.getChildren();
+            expect(children.length).toBe(1);
+            expect(children[0].label).toBe('Loading...');
+        } finally {
+            jest.useRealTimers();
+        }
     });
 
     test('getChildren returns empty without a session even when loaded', async () => {

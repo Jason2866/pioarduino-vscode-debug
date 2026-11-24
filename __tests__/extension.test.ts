@@ -3,6 +3,7 @@ import { activate, deactivate } from '../src/extension';
 import { NumberFormat } from '../src/common';
 import { RecordType as RegisterRecordType } from '../src/frontend/registers';
 import { RecordType as PeripheralRecordType } from '../src/frontend/peripheral';
+import { getDiagnosticsManager } from '../src/frontend/diagnostics';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -290,10 +291,13 @@ describe('extension activation', () => {
 
     describe('diagnostics commands', () => {
         test('showLog shows the diagnostics channel', () => {
-            const channel: any = (vscode.window.createOutputChannel as jest.Mock)('probe');
-            channel.show.mockClear();
-            handlers.get('platformio-debug.diagnostics.showLog')!();
-            expect(channel.show).toHaveBeenCalled();
+            const spy = jest.spyOn(getDiagnosticsManager(), 'showOutputChannel').mockImplementation(() => {});
+            try {
+                handlers.get('platformio-debug.diagnostics.showLog')!();
+                expect(spy).toHaveBeenCalled();
+            } finally {
+                spy.mockRestore();
+            }
         });
 
         test('exportLog copies the log to the clipboard', async () => {

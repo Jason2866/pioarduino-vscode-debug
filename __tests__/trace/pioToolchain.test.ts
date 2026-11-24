@@ -195,6 +195,36 @@ describe('pioToolchain trace context', () => {
         expect(context.elfPath).toBe(elfPath);
     });
 
+    test('chip follows an explicit ELF from a different environment', async () => {
+        writeRiscvToolchain('esp32c6');
+        writeRiscvToolchain('esp32c5');
+        fs.writeFileSync(path.join(workspace, 'platformio.ini'), [
+            '[env:esp32c6]',
+            'board = esp32c6',
+            '',
+            '[env:esp32c5]',
+            'board = esp32c5',
+        ].join('\n'));
+        const c6Elf = path.join(workspace, '.pio', 'build', 'esp32c6', 'firmware.elf');
+        const c5Elf = path.join(workspace, '.pio', 'build', 'esp32c5', 'firmware.elf');
+        writeElf(c6Elf, 243);
+        writeElf(c5Elf, 243);
+
+        // The requested env resolves to the esp32c6 candidate, but the explicit
+        // ELF belongs to the esp32c5 build — the chip must describe the ELF.
+        const context = await resolveTraceContext({
+            workspaceFolder: workspace,
+            projectEnvName: 'esp32c6',
+            elfPath: c5Elf,
+        });
+
+        expect(context.elfPath).toBe(c5Elf);
+        expect(context.chip).toBe('esp32c5');
+        expect(context.romElfPath).toBe(
+            path.join(packagesDir, 'tool-esp-rom-elfs', 'esp32c5_rev3_rom.elf')
+        );
+    });
+
     test('findRomElf prefers the lowest revision', () => {
         const romDir = path.join(packagesDir, 'tool-esp-rom-elfs');
         fs.mkdirSync(romDir, { recursive: true });

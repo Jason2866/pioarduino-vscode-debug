@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">27.6% </span>
+                <span class="strong">27.9% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>82/297</span>
+                <span class='fraction'>84/301</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">27.7% </span>
+                <span class="strong">28% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>82/296</span>
+                <span class='fraction'>84/300</span>
             </div>
         
             
@@ -703,7 +703,17 @@
 <a name='L638'></a><a href='#L638'>638</a>
 <a name='L639'></a><a href='#L639'>639</a>
 <a name='L640'></a><a href='#L640'>640</a>
-<a name='L641'></a><a href='#L641'>641</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">6x</span>
+<a name='L641'></a><a href='#L641'>641</a>
+<a name='L642'></a><a href='#L642'>642</a>
+<a name='L643'></a><a href='#L643'>643</a>
+<a name='L644'></a><a href='#L644'>644</a>
+<a name='L645'></a><a href='#L645'>645</a>
+<a name='L646'></a><a href='#L646'>646</a>
+<a name='L647'></a><a href='#L647'>647</a>
+<a name='L648'></a><a href='#L648'>648</a>
+<a name='L649'></a><a href='#L649'>649</a>
+<a name='L650'></a><a href='#L650'>650</a>
+<a name='L651'></a><a href='#L651'>651</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
@@ -728,6 +738,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">16x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">16x</span>
@@ -868,6 +881,8 @@
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1317,10 +1332,15 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
@@ -1371,6 +1391,9 @@ export class MI2 extends EventEmitter {
     private buffer: string;
     private errbuf: string;
     private consoleHistory: string[] = [];
+    // Records evicted from the front of consoleHistory, so a capture cursor
+    // taken before eviction still resolves to the right slice.
+    private consoleDropped = 0;
     private static readonly CONSOLE_HISTORY_LIMIT = 512;
 &nbsp;
     constructor(
@@ -1508,7 +1531,9 @@ export class MI2 extends EventEmitter {
                             <span class="missing-if-branch" title="else path not taken" >E</span>if (record.type === 'console' || record.type === 'target') {
                                 this.consoleHistory.push(record.content);
                                 <span class="missing-if-branch" title="if path not taken" >I</span>if (this.consoleHistory.length &gt; MI2.CONSOLE_HISTORY_LIMIT) {
-<span class="cstat-no" title="statement not covered" >                                    this.consoleHistory.splice(0, this.consoleHistory.length - MI2.CONSOLE_HISTORY_LIMIT);</span>
+                                    const removed = <span class="cstat-no" title="statement not covered" >this.consoleHistory.length - MI2.CONSOLE_HISTORY_LIMIT;</span>
+<span class="cstat-no" title="statement not covered" >                                    this.consoleHistory.splice(0, removed);</span>
+<span class="cstat-no" title="statement not covered" >                                    this.consoleDropped += removed;</span>
                                 }
                             }
                             this.log(record.type, record.content);
@@ -1957,11 +1982,16 @@ export class MI2 extends EventEmitter {
     /** Sends numbered MI command; resolves on reply. Optionally captures console/target stream output. */
     sendCommand(command: string, suppressErrors: boolean = false, captureConsole: boolean = false): Promise&lt;MINode&gt; {
         const token = this.currentToken++;
-        const consoleStart = this.consoleHistory.length;
+        // Cursor in the logical stream (history + dropped), not the live array.
+        const consoleStart = this.consoleHistory.length + this.consoleDropped;
         return new Promise((resolve, reject) =&gt; {
             this.handlers[token] = (result: MINode) =&gt; {
                 if (captureConsole) {
-                    result.consoleOutput = this.consoleHistory.slice(consoleStart).join('');
+                    // A negative cursor means the oldest retained records were
+                    // evicted; the retained tail is still the newest captured
+                    // output, so clamp the offset to zero.
+                    const from = Math.max(0, consoleStart - this.consoleDropped);
+                    result.consoleOutput = this.consoleHistory.slice(from).join('');
                 }
                 <span class="missing-if-branch" title="if path not taken" >I</span>if (result &amp;&amp; result.resultRecords &amp;&amp; result.resultRecords.resultClass === 'error') {
 <span class="cstat-no" title="statement not covered" >                    if (suppressErrors) {</span>
@@ -1990,7 +2020,7 @@ export class MI2 extends EventEmitter {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-11-24T17:58:25.179Z
+                at 2026-11-24T19:13:58.491Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

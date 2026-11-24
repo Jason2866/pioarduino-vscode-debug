@@ -65,6 +65,9 @@ describe('TraceFrontend', () => {
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({ get: configGet });
         traceConfig = {};
         configGet.mockImplementation((key: string, def?: any) => (key === 'trace' ? traceConfig : def));
+        // clearAllMocks keeps implementations; restore a benign default so a
+        // rejection configured by one test cannot leak into the next.
+        mockedResolveContext.mockReset().mockResolvedValue({ warnings: [] } as TraceContext);
         (vscode.workspace.workspaceFolders as any) = [{ uri: { fsPath: '/ws' } }];
         (vscode.debug as any).activeDebugSession = undefined;
         (vscode.window.showOpenDialog as jest.Mock).mockResolvedValue(undefined);
@@ -115,6 +118,66 @@ describe('TraceFrontend', () => {
             mockedResolveContext.mockRejectedValue(new Error('no ELF'));
             await invoke('platformio-debug.trace.resolveContext');
             expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('no ELF'));
+        });
+
+        test('empty contributed settings become undefined so discovery applies', async () => {
+            // package.json defaults contributed trace settings to "".
+            traceConfig = {
+                elfPath: '',
+                chip: '',
+                targetArch: '',
+                coreDir: '',
+                packagesDir: '',
+                buildDir: '',
+                gdbPath: '',
+                addr2linePath: '',
+                openocdPath: '',
+                romElfPath: '',
+            };
+            await invoke('platformio-debug.trace.resolveContext');
+            expect(mockedResolveContext).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    elfPath: undefined,
+                    chip: undefined,
+                    targetArch: undefined,
+                    coreDir: undefined,
+                    packagesDir: undefined,
+                    buildDir: undefined,
+                    gdbPath: undefined,
+                    addr2linePath: undefined,
+                    openocdPath: undefined,
+                    romElfPath: undefined,
+                })
+            );
+        });
+
+        test('the active session executable/env still reach the resolver', async () => {
+            traceConfig = { elfPath: '', chip: '' };
+            (vscode.debug as any).activeDebugSession = {
+                type: 'platformio-debug',
+                customRequest: jest.fn().mockResolvedValue({
+                    executable: '/sess/fw.elf',
+                    projectEnvName: 'env1',
+                }),
+            };
+            await invoke('platformio-debug.trace.resolveContext');
+            expect(mockedResolveContext).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    executable: '/sess/fw.elf',
+                    projectEnvName: 'env1',
+                    envName: 'env1',
+                    elfPath: undefined,
+                    chip: undefined,
+                })
+            );
+        });
+
+        test('nonempty contributed settings take precedence', async () => {
+            traceConfig = { elfPath: '/cfg/fw.elf', chip: 'esp32c5' };
+            await invoke('platformio-debug.trace.resolveContext');
+            expect(mockedResolveContext).toHaveBeenCalledWith(
+                expect.objectContaining({ elfPath: '/cfg/fw.elf', chip: 'esp32c5' })
+            );
         });
     });
 
@@ -188,7 +251,7 @@ describe('TraceFrontend', () => {
         test('startCapture sends trace-start with the picked file', async () => {
             const session = debugSession();
             (vscode.debug as any).activeDebugSession = session;
-            (vscode.window.showSaveDialog as jest.Mock).mockResolvedValue([{ fsPath: '/ws/.pio/trace-1.esptrace' }]);
+            (vscode.window.showSaveDialog as jest.Mock).mockResolvedValue({ fsPath: '/ws/.pio/trace-1.esptrace' });
             traceConfig = { captureTimeoutMs: 5000 };
             await invoke('platformio-debug.trace.startCapture');
             expect(session.customRequest).toHaveBeenCalledWith('trace-start', {
@@ -224,7 +287,7 @@ describe('TraceFrontend', () => {
         test('dumpCapture sends trace-dump with the picked file', async () => {
             const session = debugSession();
             (vscode.debug as any).activeDebugSession = session;
-            (vscode.window.showSaveDialog as jest.Mock).mockResolvedValue([{ fsPath: '/ws/.pio/dump.esptrace' }]);
+            (vscode.window.showSaveDialog as jest.Mock).mockResolvedValue({ fsPath: '/ws/.pio/dump.esptrace' });
             await invoke('platformio-debug.trace.dumpCapture');
             expect(session.customRequest).toHaveBeenCalledWith('trace-dump', { file: '/ws/.pio/dump.esptrace' });
             expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('dumped'));
@@ -232,7 +295,7 @@ describe('TraceFrontend', () => {
 
         test('capture commands fail gracefully without a debug session', async () => {
             (vscode.debug as any).activeDebugSession = undefined;
-            (vscode.window.showSaveDialog as jest.Mock).mockResolvedValue([{ fsPath: '/tmp/x.esptrace' }]);
+            (vscode.window.showSaveDialog as jest.Mock).mockResolvedValue({ fsPath: '/tmp/x.esptrace' });
             await expect(invoke('platformio-debug.trace.startCapture')).resolves.toBeUndefined();
             await expect(invoke('platformio-debug.trace.stopCapture')).resolves.toBeUndefined();
         });
@@ -257,6 +320,22 @@ describe('TraceFrontend', () => {
             );
             expect(vscode.workspace.openTextDocument).toHaveBeenCalled();
             expect(vscode.window.showTextDocument).toHaveBeenCalled();
+        });
+
+        test('decode passes the discovered ELF path to the analysis command', async () => {
+            traceConfig = {};
+            mockedResolveContext.mockResolvedValue({
+                elfPath: '/disc/fw.elf',
+                chip: 'esp32c6',
+                warnings: [],
+            } as TraceContext);
+            (vscode.window.showQuickPick as jest.Mock).mockResolvedValue({ label: 'Full decode', last: undefined });
+            (vscode.window.showOpenDialog as jest.Mock).mockResolvedValue([{ fsPath: '/tmp/cap.esptrace' }]);
+            await invoke('platformio-debug.trace.decode');
+            expect(mockedDecode).toHaveBeenCalledWith(
+                '/tmp/cap.esptrace',
+                expect.objectContaining({ elfPath: '/disc/fw.elf', chip: 'esp32c6' })
+            );
         });
 
         test('decode passes the selected last-N scope', async () => {

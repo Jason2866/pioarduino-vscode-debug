@@ -572,7 +572,21 @@ export async function resolveTraceContext(
         warnings.push('No firmware ELF found for trace decoding.');
     }
 
-    const chip = options.chip ?? candidate?.chip;
+    // candidate.chip only describes candidate.elfPath. When an explicit ELF
+    // wins over a mismatched candidate (e.g. the requested env's ELF was not
+    // the one given), derive the chip from that ELF's own environment instead.
+    const candidateMatchesElf = candidate !== undefined && pathsEqual(candidate.elfPath, elfPath);
+    let chip = options.chip;
+    if (chip === undefined) {
+        if (candidateMatchesElf) {
+            chip = candidate.chip;
+        } else if (elfPath) {
+            const envName =
+                envNameFromElfPath(buildDir, elfPath) ??
+                path.basename(elfPath, path.extname(elfPath));
+            chip = getChipName(envName, workspaceFolder, coreDir);
+        }
+    }
     const targetArch = options.targetArch
         ?? (elfPath ? detectElfArch(elfPath) : undefined)
         ?? (chip ? chipArch(chip) : candidate?.targetArch);

@@ -622,9 +622,11 @@ export class MI2 extends EventEmitter {
         return new Promise((resolve, reject) => {
             this.handlers[token] = (result: MINode) => {
                 if (captureConsole) {
-                    const from = consoleStart - this.consoleDropped;
-                    // A negative cursor means every captured record was evicted.
-                    result.consoleOutput = from < 0 ? '' : this.consoleHistory.slice(from).join('');
+                    // A negative cursor means the oldest retained records were
+                    // evicted; the retained tail is still the newest captured
+                    // output, so clamp the offset to zero.
+                    const from = Math.max(0, consoleStart - this.consoleDropped);
+                    result.consoleOutput = this.consoleHistory.slice(from).join('');
                 }
                 if (result && result.resultRecords && result.resultRecords.resultClass === 'error') {
                     if (suppressErrors) {

@@ -174,7 +174,7 @@ export class TraceFrontend {
             filters: { 'ESP Trace': ['esptrace'], 'All files': ['*'] },
             title: 'ESP trace capture file',
         });
-        return uris?.[0]?.fsPath;
+        return uris?.fsPath;
     }
 
     private async startCapture(): Promise<void> {
@@ -354,21 +354,25 @@ export class TraceFrontend {
         }
 
         const config = vscode.workspace.getConfiguration('platformio-debug').get<Record<string, any>>('trace', {});
+        // Contributed settings default to "" — treat empty strings as unset so
+        // PlatformIO discovery and active-session values can apply.
+        const str = (value: unknown): string | undefined =>
+            typeof value === 'string' && value.trim() !== '' ? value : undefined;
         return {
             workspaceFolder: debugArgs.cwd ?? workspaceFolder,
             executable: debugArgs.executable,
             projectEnvName: debugArgs.projectEnvName,
             envName: debugArgs.envName ?? debugArgs.projectEnvName,
-            elfPath: config.elfPath,
-            chip: config.chip,
+            elfPath: str(config.elfPath),
+            chip: str(config.chip),
             targetArch: asTraceTargetArch(config.targetArch),
-            coreDir: config.coreDir,
-            packagesDir: config.packagesDir,
-            buildDir: config.buildDir,
-            gdbPath: config.gdbPath,
-            addr2linePath: config.addr2linePath,
-            openocdPath: config.openocdPath,
-            romElfPath: config.romElfPath,
+            coreDir: str(config.coreDir),
+            packagesDir: str(config.packagesDir),
+            buildDir: str(config.buildDir),
+            gdbPath: str(config.gdbPath),
+            addr2linePath: str(config.addr2linePath),
+            openocdPath: str(config.openocdPath),
+            romElfPath: str(config.romElfPath),
             usePlatformIOConfig: config.usePlatformIOConfig !== false,
         };
     }

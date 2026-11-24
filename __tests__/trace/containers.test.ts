@@ -44,6 +44,19 @@ describe('containers/espt', () => {
         expect(cap.cores.length).toBeGreaterThanOrEqual(1);
     });
 
+    it('loads with encoder params absent when the snapshot declares none', () => {
+        // encoder_params_addr (snap+16) and encoder_params_size (snap+31) are
+        // both zero and the fixed params slot is zero-filled.
+        const tmp = path.join(require('fs').mkdtempSync(path.join(require('os').tmpdir(), 'espt-')), 'cap.esptrace');
+        const data = Buffer.from(require('fs').readFileSync(fixture('esp32c5_stop.esptrace')));
+        data.writeUInt32LE(0, 8 + 16);
+        data.writeUInt8(0, 8 + 31);
+        data.fill(0, 8 + 32, 8 + 32 + 28);
+        require('fs').writeFileSync(tmp, data);
+        const cap = espt.load(tmp);
+        expect(cap.cores.length).toBeGreaterThanOrEqual(1);
+    });
+
     it('rejects a truncated ESPT file', () => {
         const data = require('fs').readFileSync(fixture('esp32c5_stop.esptrace'));
         const tmp = path.join(FIXTURES, 'truncated.esptrace');
@@ -143,6 +156,11 @@ describe('containers/espt', () => {
                 d.writeUInt32LE(0, end.off + 4);
             });
             expect(() => espt.load(tmp)).toThrow(/END record has 0 bytes/);
+        });
+
+        it('rejects a zeroed params slot when the snapshot declares params', () => {
+            const tmp = mutatedEspt((d) => d.fill(0, 8 + 32, 8 + 32 + 28));
+            expect(() => espt.load(tmp)).toThrow(/invalid ESPT header/);
         });
 
         it('rejects an unknown END status', () => {

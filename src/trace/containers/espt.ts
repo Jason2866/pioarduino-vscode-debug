@@ -58,12 +58,10 @@ export function load(filePath: string): Capture {
         snap = abi.parseSnapshotDesc(data.subarray(OFF_SNAPSHOT, OFF_PARAMS));
         // The snapshot descriptor marks the encoder-params slot absent when
         // both address and size are zero; the fixed slot in the file header is
-        // then unused and may be zero-filled.
-        const paramsSlot = data.subarray(OFF_PARAMS, OFF_SHA256);
-        const paramsAbsent =
-            (snap.encoder_params_addr === 0 && snap.encoder_params_size === 0) ||
-            paramsSlot.every((byte) => byte === 0);
-        params = paramsAbsent ? undefined : abi.parseEncoderParams(paramsSlot);
+        // then unused and may be zero-filled. When the descriptor declares
+        // parameters, the slot must parse — an all-zero slot is malformed.
+        const paramsAbsent = snap.encoder_params_addr === 0 && snap.encoder_params_size === 0;
+        params = paramsAbsent ? undefined : abi.parseEncoderParams(data.subarray(OFF_PARAMS, OFF_SHA256));
     } catch (error) {
         if (error instanceof AbiError) {
             throw new ContainerError(`${p} has an invalid ESPT header. ${error.message}`);
