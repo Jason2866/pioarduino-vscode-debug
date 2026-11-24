@@ -5,9 +5,10 @@
 
 import { DiagnosticAccumulator, TraceDiagnostic } from './analysis/diagnostics';
 import { buildHistory, History, isFault } from './analysis/history';
-import { FaultWindowBuilder } from './analysis/origin';
+import { FaultWindow, FaultWindowBuilder } from './analysis/origin';
 import { buildProfile, mergeProfiles, Profile } from './analysis/profile';
 import { StatsAccumulator, StatsSnapshot, mergeStatsSnapshots } from './analysis/stats';
+import { TraceCaptureNote } from './ir/capture_note';
 import { CodeImage, ElfImage } from './elf/image';
 import { LayeredImage } from './elf/layered';
 import { SourceResolver } from './elf/resolver';
@@ -75,6 +76,27 @@ export interface CommandResult {
     lines: string[];
     /** The one-line summary the CLI prints to stderr, when not quiet. */
     summary?: string;
+}
+
+export interface TraceCoreAnalysis {
+    coreId: number;
+    note: TraceCaptureNote;
+    diag: TraceDiagnostic;
+    events: TraceEvent[];
+    resolver: SourceResolver;
+    image: CodeImage | undefined;
+    stats: StatsSnapshot;
+    history: History;
+    profile: Profile;
+    origin: FaultWindow;
+}
+
+export interface TraceCaptureAnalysis {
+    capturePath: string;
+    chip: string;
+    elfPath?: string;
+    romElfPath?: string;
+    cores: TraceCoreAnalysis[];
 }
 
 interface PreparedCore {
@@ -481,4 +503,44 @@ export async function originCapture(capturePath: string, options: CommandOptions
         lines.push(...formatDiagnostic(p.diag));
     }
     return finish(prepared, lines, options);
+}
+
+// ---------------------------------------------------------------------------
+// structured analysis for UI (TreeView + Webview)
+// ---------------------------------------------------------------------------
+
+export async function analyzeCapture(capturePath: string, options: CommandOptions = {}): Promise<TraceCaptureAnalysis> {
+    const { session, cores: views } = prepareCores(capturePath, options);
+    const last = options.historyLast ?? DEFAULT_HISTORY_LAST;
+    const cores: TraceCoreAnalysis[] = [];
+
+    for (const view of views) {
+        const p = await prepareCoreAsync(view, options);
+        const statsAcc = new StatsAccumulator(p.view.session.image, p.resolver);
+        const originBuilder = new FaultWindowBuilder(p.view.session.image);
+        for (const ev of p.events) {
+            statsAcc.push(ev);
+            originBuilder.push(ev);
+        }
+        cores.push({
+            coreId: p.view.core.core_id,
+            note: p.view.note,
+            diag: p.diag,
+            events: p.events,
+            resolver: p.resolver,
+            image: p.view.session.image,
+            stats: statsAcc.close(),
+            history: buildHistory(p.events, p.view.session.image, { last }),
+            profile: buildProfile(p.events, p.view.session.image),
+            origin: originBuilder.close(),
+        });
+    }
+
+    return {
+        capturePath,
+        chip: session.chip,
+        elfPath: session.elf?.path,
+        romElfPath: session.romElfPath,
+        cores,
+    };
 }

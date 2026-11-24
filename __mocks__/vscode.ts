@@ -49,7 +49,33 @@ export const window = {
     activeTextEditor: undefined,
     visibleTextEditors: [],
     onDidChangeActiveTextEditor: jest.fn().mockReturnValue({ dispose: jest.fn() }),
-    onDidChangeTextEditorSelection: jest.fn().mockReturnValue({ dispose: jest.fn() })
+    onDidChangeTextEditorSelection: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    createWebviewPanel: jest.fn().mockImplementation(() => ({
+        title: '',
+        reveal: jest.fn(),
+        dispose: jest.fn(),
+        onDidDispose: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+        webview: {
+            html: '',
+            postMessage: jest.fn().mockResolvedValue(true),
+            onDidReceiveMessage: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+        },
+    })),
+}
+
+export const ViewColumn = {
+    One: 1,
+    Two: 2,
+    Three: 3,
+}
+
+export const languages = {
+    registerDocumentLinkProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+}
+
+export class DocumentLink {
+    public tooltip: string | undefined
+    constructor(public range: any, public target?: any) {}
 }
 
 export const env = {
@@ -185,5 +211,8 @@ export default {
     Range,
     ThemeIcon,
     ThemeColor,
-    TreeItem
+    TreeItem,
+    ViewColumn,
+    languages,
+    DocumentLink
 }

@@ -5,14 +5,20 @@ import { iterCores, openSession } from '../trace/session';
 import {
     CommandOptions,
     CommandResult,
+    TraceCaptureAnalysis,
+    analyzeCapture,
     decodeCapture,
     historyCapture,
     originCapture,
     profileCapture,
     statsCapture,
 } from '../trace/commands';
+import { resolveSourceFilePath } from '../trace/elf/locationPath';
 import { TraceService } from '../trace/service';
 import { ResolveTraceContextOptions, TraceContext, TraceTargetArch } from '../trace/types';
+import { TraceDocumentLinkProvider } from './trace_link_provider';
+import { TraceTreeProvider } from './trace_tree_provider';
+import { TraceExportKind, TraceWebviewPanel } from './trace_webview';
 
 function asTraceTargetArch(value: unknown): TraceTargetArch | undefined {
     return value === 'riscv' || value === 'xtensa' ? value : undefined;
@@ -21,14 +27,19 @@ function asTraceTargetArch(value: unknown): TraceTargetArch | undefined {
 /** Frontend integration for ESP32 RISC-V trace commands. */
 export class TraceFrontend {
     private readonly service = new TraceService();
+    private readonly treeProvider = new TraceTreeProvider();
+    private readonly webviewPanel = new TraceWebviewPanel();
+    private readonly linkProvider = new TraceDocumentLinkProvider();
     private outputChannel: vscode.OutputChannel | undefined;
     private lastCaptureFile: string | undefined;
 
     register(context: vscode.ExtensionContext): vscode.Disposable[] {
         this.outputChannel = vscode.window.createOutputChannel('PlatformIO Debug Trace');
-        const disposables: vscode.Disposable[] = [this.outputChannel];
+        const disposables: vscode.Disposable[] = [this.outputChannel, this.webviewPanel];
 
         disposables.push(
+            vscode.window.registerTreeDataProvider('platformio-debug.traceView', this.treeProvider),
+            vscode.languages.registerDocumentLinkProvider({ scheme: 'untitled' }, this.linkProvider),
             vscode.commands.registerCommand('platformio-debug.trace.resolveContext', this.resolveContext.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.inspectCapture', this.inspectCapture.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.probeCapture', this.probeCapture.bind(this)),
@@ -41,7 +52,11 @@ export class TraceFrontend {
             vscode.commands.registerCommand('platformio-debug.trace.profile', this.profileCaptureCmd.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.origin', this.originCaptureCmd.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.openCaptureFolder', this.openCaptureFolder.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.openInspector', this.openInspector.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.openLocation', this.openLocation.bind(this)),
+            vscode.debug.onDidStartDebugSession(() => this.treeProvider.refresh()),
             vscode.debug.onDidTerminateDebugSession((session) => {
+                this.treeProvider.refresh();
                 if (
                     session.type === 'platformio-debug' &&
                     this.isEnabled() &&
@@ -446,6 +461,9 @@ export class TraceFrontend {
                     content: text,
                     language: kind === 'profile' && cmdOptions.profileFormat === 'speedscope' ? 'json' : 'plaintext',
                 });
+                if ((kind === 'decode' || kind === 'origin') && doc && doc.uri) {
+                    this.linkProvider.trackDocument(doc.uri);
+                }
                 await vscode.window.showTextDocument(doc, { preview: false });
             } else {
                 channel.append(text);
@@ -457,6 +475,90 @@ export class TraceFrontend {
             channel.show(true);
             vscode.window.showErrorMessage(`Trace ${kind} failed: ${message}`);
         }
+    }
+
+    private async openInspector(): Promise<void> {
+        if (!this.ensureEnabled()) {
+            return;
+        }
+        const channel = this.requireOutputChannel();
+        let analysis: TraceCaptureAnalysis | undefined = this.treeProvider.getCapture();
+        if (!analysis) {
+            const file = await this.openCaptureFile('Select trace capture to inspect');
+            if (!file) {
+                return;
+            }
+            try {
+                const options = await this.resolveToolchainOptions(channel);
+                const config = this.getTraceConfig();
+                const core =
+                    typeof config.core === 'number' && Number.isInteger(config.core) && config.core >= 0
+                        ? config.core
+                        : undefined;
+                analysis = await analyzeCapture(file, {
+                    elfPath: options.elfPath,
+                    addr2linePath: options.addr2linePath,
+                    gdbPath: options.gdbPath,
+                    core,
+                    chip: options.chip,
+                    romElfPath: options.romElfPath,
+                    romElfPathHint: options.romElfPathHint,
+                    warn: (message) => channel.appendLine(`Warning: ${message}`),
+                });
+                this.treeProvider.setCapture(analysis);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                channel.appendLine(`openInspector failed: ${message}`);
+                channel.show(true);
+                vscode.window.showErrorMessage(`Trace inspector failed: ${message}`);
+                return;
+            }
+        }
+
+        const capturePath = analysis.capturePath;
+        this.webviewPanel.show(analysis, {
+            onOpenLocation: (file, line, elfPath) => {
+                void this.openLocation({ file, line, elfPath });
+            },
+            onExport: (kind: TraceExportKind, coreId: number) => {
+                const mapKind: Record<TraceExportKind, { cmd: 'decode' | 'stats' | 'history' | 'profile' | 'origin'; extra: Partial<CommandOptions> }> = {
+                    decode: { cmd: 'decode', extra: { core: coreId } },
+                    stats: { cmd: 'stats', extra: { core: coreId } },
+                    historyText: { cmd: 'history', extra: { core: coreId, asJson: false } },
+                    historyJson: { cmd: 'history', extra: { core: coreId, asJson: true } },
+                    folded: { cmd: 'profile', extra: { core: coreId, profileFormat: 'folded' } },
+                    speedscope: { cmd: 'profile', extra: { core: coreId, profileFormat: 'speedscope' } },
+                    origin: { cmd: 'origin', extra: { core: coreId } },
+                };
+                const entry = mapKind[kind];
+                if (entry) {
+                    void this.runTraceAnalysisForFile(entry.cmd, capturePath, entry.extra, true);
+                }
+            },
+        });
+    }
+
+    private async openLocation(arg?: { file?: string; line?: number; elfPath?: string }): Promise<void> {
+        if (!arg || typeof arg.file !== 'string' || !arg.file.trim()) {
+            return;
+        }
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const roots: string[] = [];
+        if (workspaceFolder) {
+            roots.push(workspaceFolder);
+        }
+        if (arg.elfPath) {
+            roots.push(path.dirname(arg.elfPath));
+        }
+        const resolved = resolveSourceFilePath(arg.file, roots);
+        if (!resolved) {
+            vscode.window.showWarningMessage(`Source file not found: ${arg.file}`);
+            return;
+        }
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));
+        const lineZero = Math.max(0, (typeof arg.line === 'number' && Number.isFinite(arg.line) ? Math.floor(arg.line) : 1) - 1);
+        const range = new vscode.Range(lineZero, 0, lineZero, 0);
+        await vscode.window.showTextDocument(doc, { selection: range, preview: true });
     }
 
     /**

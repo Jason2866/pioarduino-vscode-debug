@@ -15,6 +15,7 @@ jest.mock('../../src/trace/session', () => ({
 }));
 
 jest.mock('../../src/trace/commands', () => ({
+    analyzeCapture: jest.fn(),
     decodeCapture: jest.fn(),
     statsCapture: jest.fn(),
     historyCapture: jest.fn(),
@@ -43,6 +44,8 @@ const TRACE_COMMANDS = [
     'platformio-debug.trace.profile',
     'platformio-debug.trace.origin',
     'platformio-debug.trace.openCaptureFolder',
+    'platformio-debug.trace.openInspector',
+    'platformio-debug.trace.openLocation',
 ];
 
 describe('TraceFrontend', () => {

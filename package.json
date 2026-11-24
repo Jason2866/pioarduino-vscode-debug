@@ -71,8 +71,41 @@
         "command": "platformio-debug.trace.openCaptureFolder",
         "title": "Trace: Open Capture Folder",
         "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.openInspector",
+        "title": "Trace: Open Trace Inspector",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.openLocation",
+        "title": "Trace: Open Source Location",
+        "category": "PlatformIO Debug"
       }
     ],
+    "views": {
+      "debug": [
+        {
+          "id": "platformio-debug.traceView",
+          "name": "ESP32 Trace",
+          "when": "config.platformio-debug.trace.enabled"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "platformio-debug.trace.inspectCapture",
+          "when": "view == platformio-debug.traceView",
+          "group": "navigation"
+        },
+        {
+          "command": "platformio-debug.trace.openInspector",
+          "when": "view == platformio-debug.traceView",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "PlatformIO Debug Trace",
       "properties": {
