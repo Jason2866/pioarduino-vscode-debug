@@ -54,6 +54,106 @@ describe('containers/espt', () => {
             require('fs').unlinkSync(tmp);
         }
     });
+
+    describe('error paths', () => {
+        const fs = require('fs');
+        const os = require('os');
+
+        function mutatedEspt(mutate: (data: Buffer) => void): string {
+            const data = Buffer.from(fs.readFileSync(fixture('esp32c5_stop.esptrace')));
+            mutate(data);
+            const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'espt-')), 'cap.esptrace');
+            fs.writeFileSync(tmp, data);
+            return tmp;
+        }
+
+        function recordOffsets(data: Buffer): Array<{ off: number; type: number; end: number }> {
+            const hdrSize = data.readUInt16LE(6);
+            const records: Array<{ off: number; type: number; end: number }> = [];
+            let off = hdrSize;
+            while (off + 8 <= data.length) {
+                const type = data.readUInt8(off);
+                const len = data.readUInt32LE(off + 4);
+                records.push({ off, type, end: off + 8 + len });
+                off += 8 + len;
+            }
+            return records;
+        }
+
+        it('rejects a bad magic', () => {
+            const tmp = mutatedEspt((d) => d.write('XXXX', 0, 'latin1'));
+            expect(() => espt.load(tmp)).toThrow(/does not start with the ESPT magic/);
+        });
+
+        it('rejects an unsupported version', () => {
+            const tmp = mutatedEspt((d) => d.writeUInt16LE(2, 4));
+            expect(() => espt.load(tmp)).toThrow(/ESPT version 2/);
+        });
+
+        it('rejects an invalid header size', () => {
+            const tmp = mutatedEspt((d) => d.writeUInt16LE(4, 6));
+            expect(() => espt.load(tmp)).toThrow(/invalid ESPT header size/);
+        });
+
+        it('rejects an unknown record type', () => {
+            const tmp = mutatedEspt((d) => {
+                const recs = recordOffsets(d);
+                d.writeUInt8(99, recs[0].off);
+            });
+            expect(() => espt.load(tmp)).toThrow(/unknown record type 99/);
+        });
+
+        it('rejects data after the END record', () => {
+            const data = Buffer.from(fs.readFileSync(fixture('esp32c5_stop.esptrace')));
+            const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'espt-')), 'cap.esptrace');
+            fs.writeFileSync(tmp, Buffer.concat([data, Buffer.alloc(16)]));
+            expect(() => espt.load(tmp)).toThrow(/data after the END record/);
+        });
+
+        it('rejects a truncated record header', () => {
+            const data = fs.readFileSync(fixture('esp32c5_stop.esptrace'));
+            const hdrSize = data.readUInt16LE(6);
+            const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'espt-')), 'cap.esptrace');
+            fs.writeFileSync(tmp, data.subarray(0, hdrSize + 4));
+            expect(() => espt.load(tmp)).toThrow(/truncated in a record header/);
+        });
+
+        it('rejects a truncated record payload', () => {
+            const data = fs.readFileSync(fixture('esp32c5_stop.esptrace'));
+            const recs = recordOffsets(data);
+            const first = recs[0];
+            const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'espt-')), 'cap.esptrace');
+            fs.writeFileSync(tmp, data.subarray(0, first.end - 1));
+            expect(() => espt.load(tmp)).toThrow(/truncated|no END record/);
+        });
+
+        it('rejects a missing END record', () => {
+            const data = fs.readFileSync(fixture('esp32c5_stop.esptrace'));
+            const recs = recordOffsets(data);
+            const end = recs.find((r) => r.type === 3)!;
+            const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'espt-')), 'cap.esptrace');
+            fs.writeFileSync(tmp, data.subarray(0, end.off));
+            expect(() => espt.load(tmp)).toThrow(/no END record/);
+        });
+
+        it('rejects an END record with the wrong payload size', () => {
+            const tmp = mutatedEspt((d) => {
+                const recs = recordOffsets(d);
+                const end = recs.find((r) => r.type === 3)!;
+                d.writeUInt32LE(0, end.off + 4);
+            });
+            expect(() => espt.load(tmp)).toThrow(/END record has 0 bytes/);
+        });
+
+        it('rejects an unknown END status', () => {
+            const tmp = mutatedEspt((d) => {
+                const recs = recordOffsets(d);
+                const end = recs.find((r) => r.type === 3)!;
+                d.writeUInt32LE(99, end.off + 8);
+            });
+            expect(() => espt.load(tmp)).toThrow(/capture ended with status 99/);
+        });
+    });
 });
 
 describe('containers/coredump', () => {
@@ -78,6 +178,41 @@ describe('containers/coredump', () => {
         expect(cap.source).toBe('coredump');
         expect(cap.target_id).toBe(CHIP_ID_ESP32C6);
         expect(cap.cores.length).toBeGreaterThanOrEqual(1);
+    });
+
+    describe('error paths', () => {
+        const fs = require('fs');
+        const os = require('os');
+
+        function mutatedCoredump(mutate: (data: Buffer) => void): string {
+            const data = Buffer.from(fs.readFileSync(fixture('esp32c5_coredump.elf')));
+            mutate(data);
+            const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'coredump-')), 'cap.elf');
+            fs.writeFileSync(tmp, data);
+            return tmp;
+        }
+
+        it('rejects a non-ELF file', () => {
+            const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'coredump-')), 'cap.bin');
+            fs.writeFileSync(tmp, 'not an elf');
+            expect(() => coredump.load(tmp)).toThrow(/not a valid ELF/);
+        });
+
+        it('rejects an ELF that is not a core file', () => {
+            // e_type at offset 16 (u16); ET_CORE is 4, patch to ET_EXEC (2)
+            const tmp = mutatedCoredump((d) => d.writeUInt16LE(2, 16));
+            expect(() => coredump.load(tmp)).toThrow(/is not a core file/);
+        });
+
+        it('rejects a core file without the ESP_RISCV_TRACE note', () => {
+            const tmp = mutatedCoredump((d) => {
+                const name = Buffer.from('ESP_RISCV_TRACE', 'latin1');
+                const idx = d.indexOf(name);
+                expect(idx).toBeGreaterThanOrEqual(0);
+                d.write('XXXXXXXXXXXXXXX', idx, 'latin1');
+            });
+            expect(() => coredump.load(tmp)).toThrow(/no ESP_RISCV_TRACE note/);
+        });
     });
 });
 

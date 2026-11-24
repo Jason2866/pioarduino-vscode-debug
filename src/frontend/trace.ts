@@ -166,7 +166,7 @@ export class TraceFrontend {
             filters: { 'ESP Trace': ['esptrace'], 'All files': ['*'] },
             title: 'ESP trace capture file',
         });
-        return uris?.fsPath;
+        return uris?.[0]?.fsPath;
     }
 
     private async startCapture(): Promise<void> {
