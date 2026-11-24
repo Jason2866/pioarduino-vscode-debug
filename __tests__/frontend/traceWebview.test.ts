@@ -28,7 +28,10 @@ function makeCore(eventCount: number): TraceCoreAnalysis {
         diag: { instructions: eventCount - 1, syncs: 1, traps: 1, gaps: 0, warnings: 0 } as any,
         events,
         resolver: { resolve: () => ({ file: '/ws/src/main.c', line: 10 }) },
-        image: { symbolAt: () => 'app_main' } as any,
+        image: {
+            symbolAt: () => 'app_main',
+            read: () => Buffer.from([0x01, 0x00]),
+        } as any,
         stats: {
             sample_hits: new Map(),
             block_hits: new Map(),
@@ -106,7 +109,10 @@ describe('trace_webview', () => {
         expect(onOpenLocation).toHaveBeenCalledWith('/ws/src/main.c', 10, '/ws/fw.elf');
 
         messageHandler?.({ type: 'export', kind: 'speedscope', coreId: 0 });
-        expect(onExport).toHaveBeenCalledWith('speedscope', 0);
+        expect(onExport).toHaveBeenCalledWith('speedscope', 0, false);
+
+        messageHandler?.({ type: 'export', kind: 'speedscope', coreId: 0, saveToFile: true });
+        expect(onExport).toHaveBeenCalledWith('speedscope', 0, true);
 
         messageHandler?.({ type: 'requestInstructions', coreId: 0, page: 0, pageSize: 2 });
         expect(postMessage).toHaveBeenCalledWith(

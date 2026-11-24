@@ -61,11 +61,11 @@ describe('TraceTreeProvider', () => {
         const roots = provider.getChildren();
         expect(roots).toHaveLength(1);
         expect(roots[0].label).toBe('Trace Actions');
-        expect(provider.getChildren(roots[0]).length).toBe(3);
+        expect(provider.getChildren(roots[0]).length).toBe(4);
 
         (vscode.debug as any).activeDebugSession = { type: 'platformio-debug' };
         const activeRoots = provider.getChildren();
-        expect(provider.getChildren(activeRoots[0]).length).toBe(7);
+        expect(provider.getChildren(activeRoots[0]).length).toBe(8);
     });
 
     test('renders capture, core, fault, and hotspot nodes with clickable openLocation commands', () => {

@@ -81,6 +81,16 @@
         "command": "platformio-debug.trace.openLocation",
         "title": "Trace: Open Source Location",
         "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.loadCapture",
+        "title": "Trace: Load Capture into Inspector",
+        "category": "PlatformIO Debug"
+      },
+      {
+        "command": "platformio-debug.trace.clearCapture",
+        "title": "Trace: Clear Loaded Capture",
+        "category": "PlatformIO Debug"
       }
     ],
     "views": {
@@ -95,12 +105,17 @@
     "menus": {
       "view/title": [
         {
-          "command": "platformio-debug.trace.inspectCapture",
+          "command": "platformio-debug.trace.loadCapture",
           "when": "view == platformio-debug.traceView",
           "group": "navigation"
         },
         {
           "command": "platformio-debug.trace.openInspector",
+          "when": "view == platformio-debug.traceView",
+          "group": "navigation"
+        },
+        {
+          "command": "platformio-debug.trace.clearCapture",
           "when": "view == platformio-debug.traceView",
           "group": "navigation"
         }

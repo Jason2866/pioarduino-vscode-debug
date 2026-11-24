@@ -110,6 +110,7 @@ export const workspace = {
     textDocuments: [],
     onDidChangeWorkspaceFolders: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    onDidCloseTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     onDidChangeConfiguration: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     getConfiguration: jest.fn().mockReturnValue({
         get: jest.fn(),

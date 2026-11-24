@@ -46,6 +46,8 @@ const TRACE_COMMANDS = [
     'platformio-debug.trace.openCaptureFolder',
     'platformio-debug.trace.openInspector',
     'platformio-debug.trace.openLocation',
+    'platformio-debug.trace.loadCapture',
+    'platformio-debug.trace.clearCapture',
 ];
 
 describe('TraceFrontend', () => {

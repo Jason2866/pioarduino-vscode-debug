@@ -66,6 +66,8 @@ export interface CommandOptions {
     /** profile */
     profileFormat?: 'folded' | 'speedscope';
     mergeProfiles?: boolean;
+    /** origin */
+    registers?: ReadonlyMap<number, number>;
     /** Suppress the one-line summary the CLI prints to stderr. */
     quiet?: boolean;
     warn?: (message: string) => void;
@@ -499,7 +501,12 @@ export async function originCapture(capturePath: string, options: CommandOptions
         }
         const win = builder.close();
         writeHeader(lines, p.view, 'origin', i === 0, false);
-        lines.push(...formatFaultOrigin(win, p.view.session.image, p.resolver, { label: `core=${p.view.core.core_id}` }));
+        lines.push(
+            ...formatFaultOrigin(win, p.view.session.image, p.resolver, {
+                label: `core=${p.view.core.core_id}`,
+                registers: options.registers,
+            })
+        );
         lines.push(...formatDiagnostic(p.diag));
     }
     return finish(prepared, lines, options);

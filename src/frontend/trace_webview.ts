@@ -2,16 +2,18 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { iterEntries } from '../trace/analysis/history';
+import { RegisterStep } from '../trace/analysis/origin';
 import { profileStacks } from '../trace/analysis/profile';
 import { UNRESOLVED_FILE } from '../trace/analysis/stats';
 import { TraceCaptureAnalysis, TraceCoreAnalysis } from '../trace/commands';
+import { decodeAt, insnText } from '../trace/decoder/semantics';
 import { TraceEvent } from '../trace/ir/events';
 
 export type TraceExportKind = 'decode' | 'stats' | 'historyJson' | 'historyText' | 'folded' | 'speedscope' | 'origin';
 
 export interface TraceWebviewCallbacks {
     onOpenLocation: (file: string, line: number, elfPath?: string) => void;
-    onExport: (kind: TraceExportKind, coreId: number) => void;
+    onExport: (kind: TraceExportKind, coreId: number, saveToFile?: boolean) => void;
 }
 
 export interface InstructionRow {
@@ -49,11 +51,13 @@ function eventToRow(ev: TraceEvent, index: number, core: TraceCoreAnalysis): Ins
     if (ev.event === 'instruction') {
         const sym = core.image?.symbolAt(ev.pc);
         const loc = core.resolver.resolve(ev.pc);
+        const decoded = core.image && typeof core.image.read === 'function' ? decodeAt(core.image, ev.pc) : undefined;
+        const detail = (decoded ? insnText(decoded, ev.pc) : undefined) ?? `cls=${ev.cls} (${ev.length}B)`;
         return {
             index,
             kind: 'instruction',
             pcText: fmtAddr(ev.pc),
-            detail: `${ev.cls} (${ev.length}B)`,
+            detail,
             symbol: sym,
             file: loc?.file,
             line: loc?.line,
@@ -157,7 +161,11 @@ export class TraceWebviewPanel {
     private analysis: TraceCaptureAnalysis | undefined;
     private callbacks: TraceWebviewCallbacks | undefined;
 
-    show(analysis: TraceCaptureAnalysis, callbacks: TraceWebviewCallbacks): void {
+    show(
+        analysis: TraceCaptureAnalysis,
+        callbacks: TraceWebviewCallbacks,
+        registers?: ReadonlyMap<number, number>
+    ): void {
         this.analysis = analysis;
         this.callbacks = callbacks;
 
@@ -178,7 +186,7 @@ export class TraceWebviewPanel {
             this.panel.webview.onDidReceiveMessage((msg) => this.handleMessage(msg));
         }
 
-        this.panel.webview.html = this.buildHtml(analysis);
+        this.panel.webview.html = this.buildHtml(analysis, registers);
     }
 
     dispose(): void {
@@ -195,7 +203,7 @@ export class TraceWebviewPanel {
             return;
         }
         if (msg.type === 'export' && typeof msg.kind === 'string' && typeof msg.coreId === 'number') {
-            this.callbacks.onExport(msg.kind as TraceExportKind, msg.coreId);
+            this.callbacks.onExport(msg.kind as TraceExportKind, msg.coreId, msg.saveToFile === true);
             return;
         }
         if (msg.type === 'requestInstructions' && typeof msg.coreId === 'number') {
@@ -213,7 +221,24 @@ export class TraceWebviewPanel {
         }
     }
 
-    private buildCorePayload(core: TraceCoreAnalysis) {
+    private serializeStep(step: RegisterStep, core: TraceCoreAnalysis): any {
+        const loc = step.pc !== undefined ? core.resolver.resolve(step.pc) : undefined;
+        return {
+            reg: step.reg,
+            kind: step.kind,
+            valueText: step.value !== undefined ? fmtAddr(step.value) : undefined,
+            instruction: step.instruction,
+            pcText: step.pc !== undefined ? fmtAddr(step.pc) : undefined,
+            file: loc?.file,
+            line: loc?.line,
+            crossed: step.crossed,
+            stop: step.stop,
+            detail: step.detail,
+            sources: step.sources.map((s) => this.serializeStep(s, core)),
+        };
+    }
+
+    private buildCorePayload(core: TraceCoreAnalysis, registers?: ReadonlyMap<number, number>) {
         const total = core.stats.total_instructions || 1;
         const stats = [...core.stats.sample_hits.entries()]
             .sort((a, b) => b[1] - a[1])
@@ -256,6 +281,7 @@ export class TraceWebviewPanel {
         const fault = win.fault;
         const faultLoc = fault?.epc !== undefined ? core.resolver.resolve(fault.epc) : undefined;
         const faultSym = fault?.epc !== undefined ? core.image?.symbolAt(fault.epc) : undefined;
+        const originRoot = fault && registers && registers.size > 0 ? win.origin(registers) : undefined;
         const origin = {
             hasFault: fault !== undefined,
             cause: fault?.cause,
@@ -265,7 +291,7 @@ export class TraceWebviewPanel {
             faultSym,
             faultFile: faultLoc?.file,
             faultLine: faultLoc?.line,
-            calls: win.stackCalls(new Map()).map((c) => {
+            calls: win.stackCalls(registers ?? new Map()).map((c) => {
                 const loc = core.resolver.resolve(c.pc);
                 return {
                     pcText: fmtAddr(c.pc),
@@ -286,6 +312,7 @@ export class TraceWebviewPanel {
                         line: loc?.line,
                     };
                 }),
+            registerRoot: originRoot ? this.serializeStep(originRoot, core) : undefined,
         };
 
         return {
@@ -304,7 +331,7 @@ export class TraceWebviewPanel {
         };
     }
 
-    private buildHtml(analysis: TraceCaptureAnalysis): string {
+    private buildHtml(analysis: TraceCaptureAnalysis, registers?: ReadonlyMap<number, number>): string {
         const nonce = crypto.randomBytes(16).toString('hex');
         const payload = {
             capturePath: analysis.capturePath,
@@ -312,7 +339,7 @@ export class TraceWebviewPanel {
             chip: analysis.chip,
             elfPath: analysis.elfPath ?? '(none)',
             romElfPath: analysis.romElfPath ?? '(none)',
-            cores: analysis.cores.map((c) => this.buildCorePayload(c)),
+            cores: analysis.cores.map((c) => this.buildCorePayload(c, registers)),
         };
         const safeJson = JSON.stringify(payload).replace(/</g, '\\u003c');
 
@@ -370,7 +397,7 @@ export class TraceWebviewPanel {
     <table><thead><tr><th>#</th><th>PC</th><th>Event</th><th>Symbol</th><th>Source</th></tr></thead><tbody id="insnBody"></tbody></table>
   </div>
   <div id="tab-history" class="hidden">
-    <div class="bar"><button id="exportHistTextBtn">Open Text</button><button id="exportHistJsonBtn">Open JSON</button></div>
+    <div class="bar"><button id="exportHistTextBtn">Open Text</button><button id="exportHistJsonBtn">Open JSON</button><button id="saveHistJsonBtn">Save JSON…</button></div>
     <table><thead><tr><th>Kind</th><th>Symbol</th><th>PC</th><th>Source</th></tr></thead><tbody id="histBody"></tbody></table>
   </div>
   <div id="tab-stats" class="hidden">
@@ -378,7 +405,7 @@ export class TraceWebviewPanel {
     <table><thead><tr><th>%</th><th>Count</th><th>Function</th><th>Source</th></tr></thead><tbody id="statsBody"></tbody></table>
   </div>
   <div id="tab-profile" class="hidden">
-    <div class="bar"><button id="exportFoldedBtn">Open Folded</button><button id="exportSpeedscopeBtn">Open Speedscope JSON</button></div>
+    <div class="bar"><button id="exportFoldedBtn">Open Folded</button><button id="saveFoldedBtn">Save Folded…</button><button id="exportSpeedscopeBtn">Open Speedscope JSON</button><button id="saveSpeedscopeBtn">Save Speedscope…</button></div>
     <table><thead><tr><th>%</th><th>Count</th><th>Stack</th></tr></thead><tbody id="profileBody"></tbody></table>
   </div>
   <div id="tab-origin" class="hidden">
@@ -465,6 +492,16 @@ function renderProfile(c) {
     '<tr><td>' + p.pct + '%</td><td>' + p.count + '</td><td>' + esc(p.stack) + '</td></tr>'
   ).join('');
 }
+function renderStepHtml(s) {
+  let meta = 'r' + s.reg + ' ' + esc(s.kind);
+  if (s.valueText) meta += ' val=' + esc(s.valueText);
+  if (s.instruction) meta += ' "' + esc(s.instruction) + '"';
+  if (s.pcText) meta += ' at ' + esc(s.pcText);
+  if (s.stop) meta += ' stop=' + esc(s.stop);
+  const loc = linkHtml(s.file, s.line);
+  const kids = (s.sources || []).map(renderStepHtml).join('');
+  return '<li>' + meta + (loc ? ' ' + loc : '') + (kids ? '<ul>' + kids + '</ul>' : '') + '</li>';
+}
 function renderOrigin(c) {
   const o = c.origin;
   if (!o.hasFault) {
@@ -473,10 +510,12 @@ function renderOrigin(c) {
   }
   const calls = o.calls.map(x => '<li>' + esc(x.sym) + ' (' + esc(x.pcText) + ') ' + linkHtml(x.file, x.line) + '</li>').join('');
   const branches = o.branches.map(b => '<li>' + esc(b.pcText) + ' ' + (b.taken ? 'taken' : 'not taken') + ' ' + linkHtml(b.file, b.line) + '</li>').join('');
+  const regHtml = o.registerRoot ? '<h3>Register Provenance</h3><ul>' + renderStepHtml(o.registerRoot) + '</ul>' : '';
   document.getElementById('originBody').innerHTML =
     '<p><b>Fault:</b> cause=' + o.cause + ' epc=' + esc(o.epcText) + ' ' + esc(o.faultSym || '') + ' ' + linkHtml(o.faultFile, o.faultLine) + ' tval=' + esc(o.tvalText) + ' complete=' + o.windowComplete + '</p>' +
     '<h3>Unreturned Calls (' + o.calls.length + ')</h3><ul>' + (calls || '<li>(none)</li>') + '</ul>' +
-    '<h3>Recent Branches (' + o.branches.length + ')</h3><ul>' + (branches || '<li>(none)</li>') + '</ul>';
+    '<h3>Recent Branches (' + o.branches.length + ')</h3><ul>' + (branches || '<li>(none)</li>') + '</ul>' +
+    regHtml;
 }
 function renderAll() {
   const c = activeCore();
@@ -498,9 +537,12 @@ document.getElementById('insnFilter').addEventListener('input', () => reqPage(0,
 document.getElementById('exportDecodeBtn').addEventListener('click', () => vscode.postMessage({ type: 'export', kind: 'decode', coreId: activeCoreId }));
 document.getElementById('exportHistTextBtn').addEventListener('click', () => vscode.postMessage({ type: 'export', kind: 'historyText', coreId: activeCoreId }));
 document.getElementById('exportHistJsonBtn').addEventListener('click', () => vscode.postMessage({ type: 'export', kind: 'historyJson', coreId: activeCoreId }));
+document.getElementById('saveHistJsonBtn').addEventListener('click', () => vscode.postMessage({ type: 'export', kind: 'historyJson', coreId: activeCoreId, saveToFile: true }));
 document.getElementById('exportStatsBtn').addEventListener('click', () => vscode.postMessage({ type: 'export', kind: 'stats', coreId: activeCoreId }));
 document.getElementById('exportFoldedBtn').addEventListener('click', () => vscode.postMessage({ type: 'export', kind: 'folded', coreId: activeCoreId }));
+document.getElementById('saveFoldedBtn').addEventListener('click', () => vscode.postMessage({ type: 'export', kind: 'folded', coreId: activeCoreId, saveToFile: true }));
 document.getElementById('exportSpeedscopeBtn').addEventListener('click', () => vscode.postMessage({ type: 'export', kind: 'speedscope', coreId: activeCoreId }));
+document.getElementById('saveSpeedscopeBtn').addEventListener('click', () => vscode.postMessage({ type: 'export', kind: 'speedscope', coreId: activeCoreId, saveToFile: true }));
 document.getElementById('exportOriginBtn').addEventListener('click', () => vscode.postMessage({ type: 'export', kind: 'origin', coreId: activeCoreId }));
 
 window.addEventListener('message', (event) => {

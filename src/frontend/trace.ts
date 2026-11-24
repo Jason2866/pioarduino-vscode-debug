@@ -32,6 +32,7 @@ export class TraceFrontend {
     private readonly linkProvider = new TraceDocumentLinkProvider();
     private outputChannel: vscode.OutputChannel | undefined;
     private lastCaptureFile: string | undefined;
+    private lastResolvedContext: TraceContext | undefined;
 
     register(context: vscode.ExtensionContext): vscode.Disposable[] {
         this.outputChannel = vscode.window.createOutputChannel('PlatformIO Debug Trace');
@@ -40,6 +41,7 @@ export class TraceFrontend {
         disposables.push(
             vscode.window.registerTreeDataProvider('platformio-debug.traceView', this.treeProvider),
             vscode.languages.registerDocumentLinkProvider({ scheme: 'untitled' }, this.linkProvider),
+            vscode.workspace.onDidCloseTextDocument((doc) => this.linkProvider.untrackDocument(doc.uri)),
             vscode.commands.registerCommand('platformio-debug.trace.resolveContext', this.resolveContext.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.inspectCapture', this.inspectCapture.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.probeCapture', this.probeCapture.bind(this)),
@@ -54,7 +56,21 @@ export class TraceFrontend {
             vscode.commands.registerCommand('platformio-debug.trace.openCaptureFolder', this.openCaptureFolder.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.openInspector', this.openInspector.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.openLocation', this.openLocation.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.loadCapture', this.loadCapture.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.clearCapture', this.clearCapture.bind(this)),
             vscode.debug.onDidStartDebugSession(() => this.treeProvider.refresh()),
+            vscode.debug.onDidReceiveDebugSessionCustomEvent((event) => {
+                if (
+                    event.session.type === 'platformio-debug' &&
+                    event.event === 'stopped' &&
+                    this.isEnabled() &&
+                    this.getTraceConfig().autoDecodeOnStop === true &&
+                    this.lastCaptureFile &&
+                    fs.existsSync(this.lastCaptureFile)
+                ) {
+                    void this.runTraceAnalysisForFile('decode', this.lastCaptureFile, {}, true);
+                }
+            }),
             vscode.debug.onDidTerminateDebugSession((session) => {
                 this.treeProvider.refresh();
                 if (
@@ -346,6 +362,9 @@ export class TraceFrontend {
             await this.traceRequest('trace-dump', { file });
             this.lastCaptureFile = file;
             vscode.window.showInformationMessage(`Trace buffers dumped to ${file}`);
+            if (this.getTraceConfig().autoDecodeOnStop === true && fs.existsSync(file)) {
+                void this.runTraceAnalysisForFile('decode', file, {}, true);
+            }
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             vscode.window.showErrorMessage(`Trace dump failed: ${message}`);
@@ -388,7 +407,8 @@ export class TraceFrontend {
     }
 
     private async originCaptureCmd(): Promise<void> {
-        await this.runTraceAnalysis('origin', {}, true);
+        const registers = await this.readActiveSessionRegisters();
+        await this.runTraceAnalysis('origin', { registers }, true);
     }
 
     private async runTraceAnalysis(
@@ -477,12 +497,25 @@ export class TraceFrontend {
         }
     }
 
+    private async loadCapture(): Promise<void> {
+        await this.openInspectorWithCapture(true);
+    }
+
+    private clearCapture(): void {
+        this.treeProvider.clear();
+        this.webviewPanel.dispose();
+    }
+
     private async openInspector(): Promise<void> {
+        await this.openInspectorWithCapture(false);
+    }
+
+    private async openInspectorWithCapture(forcePick: boolean): Promise<void> {
         if (!this.ensureEnabled()) {
             return;
         }
         const channel = this.requireOutputChannel();
-        let analysis: TraceCaptureAnalysis | undefined = this.treeProvider.getCapture();
+        let analysis: TraceCaptureAnalysis | undefined = forcePick ? undefined : this.treeProvider.getCapture();
         if (!analysis) {
             const file = await this.openCaptureFile('Select trace capture to inspect');
             if (!file) {
@@ -516,26 +549,138 @@ export class TraceFrontend {
         }
 
         const capturePath = analysis.capturePath;
-        this.webviewPanel.show(analysis, {
-            onOpenLocation: (file, line, elfPath) => {
-                void this.openLocation({ file, line, elfPath });
+        const registers = await this.readActiveSessionRegisters();
+        this.webviewPanel.show(
+            analysis,
+            {
+                onOpenLocation: (file, line, elfPath) => {
+                    void this.openLocation({ file, line, elfPath });
+                },
+                onExport: (kind: TraceExportKind, coreId: number, saveToFile?: boolean) => {
+                    const mapKind: Record<
+                        TraceExportKind,
+                        { cmd: 'decode' | 'stats' | 'history' | 'profile' | 'origin'; extra: Partial<CommandOptions>; ext: string }
+                    > = {
+                        decode: { cmd: 'decode', extra: { core: coreId }, ext: 'txt' },
+                        stats: { cmd: 'stats', extra: { core: coreId }, ext: 'txt' },
+                        historyText: { cmd: 'history', extra: { core: coreId, asJson: false }, ext: 'txt' },
+                        historyJson: { cmd: 'history', extra: { core: coreId, asJson: true }, ext: 'json' },
+                        folded: { cmd: 'profile', extra: { core: coreId, profileFormat: 'folded' }, ext: 'folded' },
+                        speedscope: { cmd: 'profile', extra: { core: coreId, profileFormat: 'speedscope' }, ext: 'speedscope.json' },
+                        origin: { cmd: 'origin', extra: { core: coreId, registers }, ext: 'txt' },
+                    };
+                    const entry = mapKind[kind];
+                    if (!entry) {
+                        return;
+                    }
+                    if (saveToFile) {
+                        void this.saveTraceExport(entry.cmd, capturePath, entry.extra, entry.ext);
+                    } else {
+                        void this.runTraceAnalysisForFile(entry.cmd, capturePath, entry.extra, true);
+                    }
+                },
             },
-            onExport: (kind: TraceExportKind, coreId: number) => {
-                const mapKind: Record<TraceExportKind, { cmd: 'decode' | 'stats' | 'history' | 'profile' | 'origin'; extra: Partial<CommandOptions> }> = {
-                    decode: { cmd: 'decode', extra: { core: coreId } },
-                    stats: { cmd: 'stats', extra: { core: coreId } },
-                    historyText: { cmd: 'history', extra: { core: coreId, asJson: false } },
-                    historyJson: { cmd: 'history', extra: { core: coreId, asJson: true } },
-                    folded: { cmd: 'profile', extra: { core: coreId, profileFormat: 'folded' } },
-                    speedscope: { cmd: 'profile', extra: { core: coreId, profileFormat: 'speedscope' } },
-                    origin: { cmd: 'origin', extra: { core: coreId } },
-                };
-                const entry = mapKind[kind];
-                if (entry) {
-                    void this.runTraceAnalysisForFile(entry.cmd, capturePath, entry.extra, true);
-                }
-            },
+            registers
+        );
+    }
+
+    private async saveTraceExport(
+        kind: 'decode' | 'stats' | 'history' | 'profile' | 'origin',
+        capturePath: string,
+        extra: Partial<CommandOptions>,
+        ext: string
+    ): Promise<void> {
+        const channel = this.requireOutputChannel();
+        const defaultName = `${path.basename(capturePath, path.extname(capturePath))}.${kind}.${ext}`;
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const uri = await vscode.window.showSaveDialog({
+            defaultUri: workspaceFolder ? vscode.Uri.file(path.join(workspaceFolder, defaultName)) : undefined,
+            title: `Save trace ${kind} export`,
         });
+        if (!uri) {
+            return;
+        }
+        try {
+            const options = await this.resolveToolchainOptions(channel);
+            const cmdOptions: CommandOptions = {
+                elfPath: options.elfPath,
+                addr2linePath: options.addr2linePath,
+                gdbPath: options.gdbPath,
+                chip: options.chip,
+                romElfPath: options.romElfPath,
+                romElfPathHint: options.romElfPathHint,
+                warn: (message) => channel.appendLine(`Warning: ${message}`),
+                ...extra,
+            };
+            let result: CommandResult;
+            if (kind === 'decode') {
+                result = await decodeCapture(capturePath, cmdOptions);
+            } else if (kind === 'stats') {
+                result = await statsCapture(capturePath, cmdOptions);
+            } else if (kind === 'history') {
+                result = await historyCapture(capturePath, cmdOptions);
+            } else if (kind === 'origin') {
+                result = await originCapture(capturePath, cmdOptions);
+            } else {
+                result = await profileCapture(capturePath, cmdOptions);
+            }
+            fs.writeFileSync(uri.fsPath, result.lines.join('\n') + '\n', 'utf-8');
+            vscode.window.showInformationMessage(`Saved trace export to ${uri.fsPath}`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            channel.appendLine(`Export failed: ${message}`);
+            vscode.window.showErrorMessage(`Trace export failed: ${message}`);
+        }
+    }
+
+    private async readActiveSessionRegisters(): Promise<Map<number, number> | undefined> {
+        const session = vscode.debug.activeDebugSession;
+        if (!session || session.type !== 'platformio-debug') {
+            return undefined;
+        }
+        const abiNames: Record<string, number> = {
+            zero: 0, ra: 1, sp: 2, gp: 3, tp: 4,
+            t0: 5, t1: 6, t2: 7, s0: 8, fp: 8, s1: 9,
+            a0: 10, a1: 11, a2: 12, a3: 13, a4: 14, a5: 15, a6: 16, a7: 17,
+            s2: 18, s3: 19, s4: 20, s5: 21, s6: 22, s7: 23, s8: 24, s9: 25, s10: 26, s11: 27,
+            t3: 28, t4: 29, t5: 30, t6: 31,
+        };
+        try {
+            const threads = await session.customRequest('threads');
+            const threadId = threads?.threads?.[0]?.id;
+            if (typeof threadId !== 'number') {
+                return undefined;
+            }
+            const stack = await session.customRequest('stackTrace', { threadId, startFrame: 0, levels: 1 });
+            const frameId = stack?.stackFrames?.[0]?.id;
+            if (typeof frameId !== 'number') {
+                return undefined;
+            }
+            const scopes = await session.customRequest('scopes', { frameId });
+            const regScope = (scopes?.scopes ?? []).find((s: any) => /register/i.test(String(s.name)));
+            if (!regScope?.variablesReference) {
+                return undefined;
+            }
+            const vars = await session.customRequest('variables', { variablesReference: regScope.variablesReference });
+            const regs = new Map<number, number>();
+            for (const v of vars?.variables ?? []) {
+                const name = String(v.name ?? '').trim().toLowerCase();
+                let idx = abiNames[name];
+                if (idx === undefined && /^x(\d+)$/.test(name)) {
+                    idx = parseInt(name.slice(1), 10);
+                }
+                if (idx === undefined || idx < 0 || idx > 31) {
+                    continue;
+                }
+                const val = Number(v.value);
+                if (Number.isFinite(val)) {
+                    regs.set(idx, val >>> 0);
+                }
+            }
+            return regs.size > 0 ? regs : undefined;
+        } catch {
+            return undefined;
+        }
     }
 
     private async openLocation(arg?: { file?: string; line?: number; elfPath?: string }): Promise<void> {
@@ -549,6 +694,17 @@ export class TraceFrontend {
         }
         if (arg.elfPath) {
             roots.push(path.dirname(arg.elfPath));
+        }
+        if (this.lastResolvedContext?.packagesDir) {
+            const pkgDir = this.lastResolvedContext.packagesDir;
+            roots.push(
+                pkgDir,
+                path.join(pkgDir, 'framework-espidf'),
+                path.join(pkgDir, 'framework-arduinoespressif32')
+            );
+        }
+        if (process.env.IDF_PATH) {
+            roots.push(process.env.IDF_PATH);
         }
         const resolved = resolveSourceFilePath(arg.file, roots);
         if (!resolved) {
@@ -573,6 +729,7 @@ export class TraceFrontend {
         const options = await this.buildResolveOptions();
         try {
             const context = await this.service.resolveContext(options);
+            this.lastResolvedContext = context;
             for (const warning of context.warnings) {
                 channel.appendLine(`Warning: ${warning}`);
             }

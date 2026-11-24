@@ -94,9 +94,14 @@ export class TraceTreeProvider implements vscode.TreeDataProvider<TraceTreeItem>
     private buildActionsNode(): TraceTreeItem {
         const items: TraceTreeItem[] = [
             this.actionItem('Load / Inspect Capture…', 'platformio-debug.trace.inspectCapture'),
-            this.actionItem('Open Trace Inspector…', 'platformio-debug.trace.openInspector'),
+            this.actionItem('Load Capture into Inspector…', 'platformio-debug.trace.loadCapture'),
+            this.actionItem('Open Trace Inspector', 'platformio-debug.trace.openInspector'),
             this.actionItem('Open Capture Folder', 'platformio-debug.trace.openCaptureFolder'),
         ];
+
+        if (this.analysis) {
+            items.push(this.actionItem('Clear Loaded Capture', 'platformio-debug.trace.clearCapture'));
+        }
 
         const session = vscode.debug.activeDebugSession;
         if (session && session.type === 'platformio-debug') {
