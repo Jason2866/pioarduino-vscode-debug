@@ -141,4 +141,17 @@ describe('platformioIni', () => {
         const sections = parsePlatformioIni(fs.readFileSync(path.join(workspace, 'platformio.ini'), 'utf8'));
         await expect(resolveBuildDir(workspace, sections)).resolves.toBeUndefined();
     });
+
+    test('expands repeated variable references in the same value', () => {
+        fs.writeFileSync(path.join(workspace, 'platformio.ini'), [
+            '[common]',
+            'part = foo',
+            '',
+            '[env:demo]',
+            'board = esp32c6',
+            'flags = ${common.part}-${common.part}',
+        ].join('\n'));
+        const sections = readPlatformioSections(workspace)!;
+        expect(sections['env:demo']['flags']).toBe('foo-foo');
+    });
 });

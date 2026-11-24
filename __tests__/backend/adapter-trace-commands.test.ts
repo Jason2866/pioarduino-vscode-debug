@@ -220,4 +220,17 @@ describe('adapter.ts — trace-* custom requests', () => {
         expect(session.sendErrorResponse).toHaveBeenCalled();
         expect(debuggerSend).not.toHaveBeenCalled();
     });
+
+    test('trace-start ignores negative timeoutMs', () => {
+        session.miDebugger.sendCommand.mockReturnValue(resolveWith(''));
+        const response = makeResponse();
+
+        session.customRequest('trace-start', response, { file: '/tmp/cap.esptrace', timeoutMs: -50 });
+
+        expect(session.miDebugger.sendCommand).toHaveBeenCalledWith(
+            'interpreter-exec console "monitor esp riscv_trace start loop \\"/tmp/cap.esptrace\\""',
+            false,
+            true
+        );
+    });
 });

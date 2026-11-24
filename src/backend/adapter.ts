@@ -287,7 +287,10 @@ export class GDBDebugSession extends DebugSession {
                     this.sendErrorResponse(response, 112, 'trace-start requires a file argument.');
                     return;
                 }
-                const timeout = args.timeoutMs ? ` ${Math.floor(args.timeoutMs)}` : '';
+                const timeout =
+                    typeof args.timeoutMs === 'number' && Number.isFinite(args.timeoutMs) && args.timeoutMs > 0
+                        ? ` ${Math.floor(args.timeoutMs)}`
+                        : '';
                 monitorCmd = `esp riscv_trace start loop ${quotePath(args.file)}${timeout}`;
                 break;
             }

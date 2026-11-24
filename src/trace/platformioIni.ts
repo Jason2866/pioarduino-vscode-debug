@@ -145,8 +145,9 @@ function interpolateVariables(sections: Sections): void {
             if (!section || !(keyName in section)) {
                 return match;
             }
-            visited.add(refKey);
-            return resolve(section[keyName], depth + 1, new Set(visited));
+            const nextVisited = new Set(visited);
+            nextVisited.add(refKey);
+            return resolve(section[keyName], depth + 1, nextVisited);
         });
     }
 

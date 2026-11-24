@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>17/17</span>
+                <span class='fraction'>0/17</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>6/6</span>
+                <span class='fraction'>0/6</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>16/16</span>
+                <span class='fraction'>0/16</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -96,79 +96,70 @@
 <a name='L31'></a><a href='#L31'>31</a>
 <a name='L32'></a><a href='#L32'>32</a>
 <a name='L33'></a><a href='#L33'>33</a>
-<a name='L34'></a><a href='#L34'>34</a>
-<a name='L35'></a><a href='#L35'>35</a>
-<a name='L36'></a><a href='#L36'>36</a>
-<a name='L37'></a><a href='#L37'>37</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<a name='L34'></a><a href='#L34'>34</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">20x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import * as vscode from 'vscode';
-import { parseQuery } from '../utils';
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >import * as vscode from 'vscode';</span>
+<span class="cstat-no" title="statement not covered" >import { parseQuery } from '../utils';</span>
 &nbsp;
-/** TextDocumentContentProvider for disassembly://. */
-export class DisassemblyContentProvider implements vscode.TextDocumentContentProvider {
-    /** Returns formatted disassembly text for the requested function. */
-    provideTextDocumentContent(uri: vscode.Uri, token: vscode.CancellationToken): Thenable&lt;string&gt; {
-        return new Promise((resolve, reject) =&gt; {
-            const params = parseQuery(uri.query);
-            vscode.debug.activeDebugSession
+<span class="cstat-no" title="statement not covered" >export class D</span>isassemblyContentProvider implements vscode.TextDocumentContentProvider {
+<span class="fstat-no" title="function not covered" >    provideTextDocumentContent(</span>uri: vscode.Uri, token: vscode.CancellationToken): Thenable&lt;string&gt; {
+<span class="cstat-no" title="statement not covered" >        return new Promise(<span class="fstat-no" title="function not covered" >(r</span>esolve, reject) =&gt; {</span>
+            const params = <span class="cstat-no" title="statement not covered" >parseQuery(uri.query);</span>
+<span class="cstat-no" title="statement not covered" >            vscode.debug.activeDebugSession</span>
                 .customRequest('disassemble', { function: params.func, file: params.file })
                 .then(
-                    (result: any) =&gt; {
-                        const instructions = result.instructions;
-                        let output = '';
-                        instructions.forEach((instruction: any) =&gt; {
-                            output += `${instruction.address}: ${this.padEnd(15, instruction.opcodes)} \t${instruction.instruction}\n`;
+<span class="fstat-no" title="function not covered" >                    (r</span>esult: any) =&gt; {
+                        const instructions = <span class="cstat-no" title="statement not covered" >result.instructions;</span>
+                        let output = <span class="cstat-no" title="statement not covered" >'';</span>
+<span class="cstat-no" title="statement not covered" >                        instructions.forEach(<span class="fstat-no" title="function not covered" >(i</span>nstruction: any) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >                            output += `${instruction.address}: ${this.padEnd(15, instruction.opcodes)} \t${instruction.instruction}\n`;</span>
                         });
-                        resolve(output);
+<span class="cstat-no" title="statement not covered" >                        resolve(output);</span>
                     },
-                    (error: any) =&gt; {
-                        vscode.window.showErrorMessage(error.message);
-                        reject(error.message);
+<span class="fstat-no" title="function not covered" >                    (e</span>rror: any) =&gt; {
+<span class="cstat-no" title="statement not covered" >                        vscode.window.showErrorMessage(error.message);</span>
+<span class="cstat-no" title="statement not covered" >                        reject(error.message);</span>
                     }
                 );
         });
     }
 &nbsp;
-    /** Right-pads a string to the target length. */
-    private padEnd(targetLength: number, str: string): string {
-        for (let i = str.length; i &lt; targetLength; i++) {
-            str += ' ';
+    private <span class="fstat-no" title="function not covered" >padEnd(</span>targetLength: number, str: string): string {
+<span class="cstat-no" title="statement not covered" >        for (let i = <span class="cstat-no" title="statement not covered" >str.length;</span> i &lt; targetLength; i++) {</span>
+<span class="cstat-no" title="statement not covered" >            str += ' ';</span>
         }
-        return str;
+<span class="cstat-no" title="statement not covered" >        return str;</span>
     }
 }
 &nbsp;</pre></td></tr></table></pre>
@@ -178,7 +169,7 @@ export class DisassemblyContentProvider implements vscode.TextDocumentContentPro
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-11-24T19:13:58.491Z
+                at 2026-03-11T16:25:16.382Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

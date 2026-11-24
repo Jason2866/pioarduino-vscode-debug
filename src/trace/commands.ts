@@ -20,6 +20,7 @@ import { TraceEvent, TraceTrap } from './ir/events';
 import { CoreView, Session, UsageError, iterCores, openSession } from './session';
 import { RomStatus, resolveRomElf, romElfFileRevision } from './elf/rom';
 import * as fs from 'fs';
+import * as path from 'path';
 
 export const EXIT_OK = 0;
 export const EXIT_USAGE = 1;
@@ -84,7 +85,12 @@ interface PreparedCore {
  * encoding as roms.json revisions. Unversioned files are only trusted when
  * the capture revision is unknown (0).
  */
-function romElfHintCompatible(hint: string, chipRevision: number): boolean {
+function romElfHintCompatible(hint: string, chipRevision: number, chip: string): boolean {
+    const base = path.basename(hint).toLowerCase();
+    const chipPrefix = chip.toLowerCase();
+    if (!base.startsWith(`${chipPrefix}_`) && !base.startsWith(`${chipPrefix}.`)) {
+        return false;
+    }
     if (chipRevision <= 0) {
         return true;
     }
@@ -120,7 +126,7 @@ function prepareCores(capturePath: string, options: CommandOptions): { session: 
             if (
                 romPath === undefined &&
                 options.romElfPathHint !== undefined &&
-                romElfHintCompatible(options.romElfPathHint, revision)
+                romElfHintCompatible(options.romElfPathHint, revision, session.chip)
             ) {
                 romPath = options.romElfPathHint;
                 status = RomStatus.AUTO;
@@ -190,7 +196,13 @@ async function buildResolver(view: CoreView, events: TraceEvent[], options: Comm
     if (session.elf === undefined || options.addr2linePath === undefined) {
         return sessionResolver(view);
     }
-    return resolveSourceLines(eventPcs(events), options.addr2linePath, session.elf.path);
+    try {
+        return await resolveSourceLines(eventPcs(events), options.addr2linePath, session.elf.path);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        options.warn?.(`addr2line failed (${message}), continuing without source lines`);
+        return sessionResolver(view);
+    }
 }
 
 function summaryLine(cores: PreparedCore[]): string {

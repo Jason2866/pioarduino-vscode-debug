@@ -132,4 +132,29 @@ describe('trace commands without addr2line', () => {
         });
         expect(normalize(result.lines.join('\n') + '\n')).toBe(golden('profile_c6_panic_speedscope.json'));
     });
+
+    test('ignores romElfPathHint for a different chip', async () => {
+        const warnings: string[] = [];
+        const result = await decodeCapture(rel('esp32c5_stop.esptrace'), {
+            elfPath: rel('esp32c5.elf'),
+            romElfPathHint: rel('esp32c6.elf').replace('esp32c6.elf', 'esp32c6_rev0_rom.elf'),
+            last: 10,
+            quiet: true,
+            warn: (m) => warnings.push(m),
+        });
+        expect(result.lines.join('\n')).not.toContain('esp32c6_rev0_rom.elf');
+    });
+
+    test('warns and continues when addr2line fails', async () => {
+        const warnings: string[] = [];
+        const result = await decodeCapture(rel('esp32c5_stop.esptrace'), {
+            elfPath: rel('esp32c5.elf'),
+            addr2linePath: '/nonexistent/riscv32-esp-elf-addr2line',
+            last: 10,
+            quiet: true,
+            warn: (m) => warnings.push(m),
+        });
+        expect(result.lines.length).toBeGreaterThan(0);
+        expect(warnings.some((w) => w.includes('addr2line failed'))).toBe(true);
+    });
 });

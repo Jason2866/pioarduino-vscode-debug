@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.07% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>11/181</span>
+                <span class='fraction'>0/181</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.07% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>11/181</span>
+                <span class='fraction'>0/181</span>
             </div>
         
             
@@ -347,33 +347,21 @@
 <a name='L282'></a><a href='#L282'>282</a>
 <a name='L283'></a><a href='#L283'>283</a>
 <a name='L284'></a><a href='#L284'>284</a>
-<a name='L285'></a><a href='#L285'>285</a>
-<a name='L286'></a><a href='#L286'>286</a>
-<a name='L287'></a><a href='#L287'>287</a>
-<a name='L288'></a><a href='#L288'>288</a>
-<a name='L289'></a><a href='#L289'>289</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">2x</span>
+<a name='L285'></a><a href='#L285'>285</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -381,14 +369,18 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -639,25 +631,23 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { MINode } from './mi_parse';
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >import { MINode } from './mi_parse';</span>
 &nbsp;
-const VARIABLE_ASSIGNMENT_REGEX = /^([a-zA-Z_\-][a-zA-Z0-9_\-]*|\[\d+\])\s*=\s*/;
-const VARIABLE_NAME_REGEX = /^[a-zA-Z_\-][a-zA-Z0-9_\-]*/;
-const ANGLE_BRACKET_REGEX = /^\&lt;.+?\&gt;/;
-const HEX_STRING_REGEX = /^(0x[0-9a-fA-F]+\s*)"/;
-const HEX_REGEX = /^0x[0-9a-fA-F]+/;
-const NULL_PTR_REGEX = /^0x0+\b/;
-const CHAR_CODE_STRING_REGEX = /^(\d+) ['"]/;
-const NUMBER_REGEX = /^\d+(\.\d+)?/;
+const VARIABLE_ASSIGNMENT_REGEX = <span class="cstat-no" title="statement not covered" >/^([a-zA-Z_\-][a-zA-Z0-9_\-]*|\[\d+\])\s*=\s*/;</span>
+const VARIABLE_NAME_REGEX = <span class="cstat-no" title="statement not covered" >/^[a-zA-Z_\-][a-zA-Z0-9_\-]*/;</span>
+const ANGLE_BRACKET_REGEX = <span class="cstat-no" title="statement not covered" >/^\&lt;.+?\&gt;/;</span>
+const HEX_STRING_REGEX = <span class="cstat-no" title="statement not covered" >/^(0x[0-9a-fA-F]+\s*)"/;</span>
+const HEX_REGEX = <span class="cstat-no" title="statement not covered" >/^0x[0-9a-fA-F]+/;</span>
+const NULL_PTR_REGEX = <span class="cstat-no" title="statement not covered" >/^0x0+\b/;</span>
+const CHAR_CODE_STRING_REGEX = <span class="cstat-no" title="statement not covered" >/^(\d+) ['"]/;</span>
+const NUMBER_REGEX = <span class="cstat-no" title="statement not covered" >/^\d+(\.\d+)?/;</span>
 &nbsp;
-/** Determines if a value string is expandable. */
-export function <span class="fstat-no" title="function not covered" >isExpandable(</span>value: string): number {
+<span class="cstat-no" title="statement not covered" >export function <span class="fstat-no" title="function not covered" >i</span>sExpandable(</span>value: string): number {
 <span class="cstat-no" title="statement not covered" >    value = value.trim();</span>
 <span class="cstat-no" title="statement not covered" >    if (value.length === 0) {</span>
 <span class="cstat-no" title="statement not covered" >        return 0;</span>
     }
 <span class="cstat-no" title="statement not covered" >    if (value.startsWith('{...}')) {</span>
-        /** Determines if a value string is expandable. */
 <span class="cstat-no" title="statement not covered" >        return 2;</span>
     }
 <span class="cstat-no" title="statement not covered" >    if (value[0] === '{') {</span>
@@ -674,14 +664,12 @@ export function <span class="fstat-no" title="function not covered" >isExpandabl
 <span class="cstat-no" title="statement not covered" >    return 0;</span>
 }
 &nbsp;
-/** Parses a GDB value string into a DAP variable tree. */
-export function <span class="fstat-no" title="function not covered" >expandValue(</span>
+<span class="cstat-no" title="statement not covered" >export function <span class="fstat-no" title="function not covered" >e</span>xpandValue(</span>
     createVariableReference: (name: string | any, options?: any) =&gt; number,
     value: string,
     root: string = <span class="branch-0 cbranch-no" title="branch not covered" >'',</span>
     extra?: any
 ): any {
-    /** Parses a GDB value string into a DAP variable tree. */
     const parseQuotedString = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(): string =</span>&gt; {</span>
 <span class="cstat-no" title="statement not covered" >        value = value.trim();</span>
 <span class="cstat-no" title="statement not covered" >        if (value[0] !== '"' &amp;&amp; value[0] !== "'") {</span>
@@ -934,7 +922,7 @@ export function <span class="fstat-no" title="function not covered" >expandValue
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-11-24T19:13:58.491Z
+                at 2026-03-11T16:25:16.382Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

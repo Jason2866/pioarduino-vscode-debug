@@ -190,7 +190,7 @@ describe('pioToolchain trace context', () => {
             usePlatformIOConfig: true,
         });
 
-        expect(pioCore.getCorePythonCommandOutput).toHaveBeenCalled();
+        expect(pioCore.getCorePythonCommandOutput).toHaveBeenCalledTimes(1);
         expect(context.buildDir).toBe(resolvedBuildDir);
         expect(context.elfPath).toBe(elfPath);
     });

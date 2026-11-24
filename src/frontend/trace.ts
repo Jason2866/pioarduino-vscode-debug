@@ -151,6 +151,7 @@ export class TraceFrontend {
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             channel.appendLine(`Trace probe failed: ${message}`);
+            vscode.window.showErrorMessage(`Trace probe failed: ${message}`);
         }
     }
 
@@ -178,6 +179,16 @@ export class TraceFrontend {
     }
 
     private async startCapture(): Promise<void> {
+        const channel = this.requireOutputChannel();
+        try {
+            this.requireDebugSession();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            channel.appendLine(`Trace start failed: ${message}`);
+            channel.show(true);
+            vscode.window.showErrorMessage(`Trace start failed: ${message}`);
+            return;
+        }
         const file = await this.pickCaptureFile(`trace-${Date.now()}.esptrace`);
         if (!file) {
             return;
@@ -187,8 +198,9 @@ export class TraceFrontend {
         try {
             await this.traceRequest('trace-start', { file, timeoutMs });
             vscode.window.showInformationMessage(`Trace capture started: ${file}`);
-        } catch {
-            // Error already reported to the trace output channel.
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(`Trace start failed: ${message}`);
         }
     }
 
@@ -200,10 +212,21 @@ export class TraceFrontend {
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             channel.appendLine(`Trace stop failed: ${message}`);
+            vscode.window.showErrorMessage(`Trace stop failed: ${message}`);
         }
     }
 
     private async dumpCapture(): Promise<void> {
+        const channel = this.requireOutputChannel();
+        try {
+            this.requireDebugSession();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            channel.appendLine(`Trace dump failed: ${message}`);
+            channel.show(true);
+            vscode.window.showErrorMessage(`Trace dump failed: ${message}`);
+            return;
+        }
         const file = await this.pickCaptureFile(`trace-dump-${Date.now()}.esptrace`);
         if (!file) {
             return;
@@ -211,8 +234,9 @@ export class TraceFrontend {
         try {
             await this.traceRequest('trace-dump', { file });
             vscode.window.showInformationMessage(`Trace buffers dumped to ${file}`);
-        } catch {
-            // Error already reported to the trace output channel.
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(`Trace dump failed: ${message}`);
         }
     }
 
