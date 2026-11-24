@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { iterCores, openSession } from '../trace/session';
+import { CommandOptions, CommandResult, decodeCapture, historyCapture, profileCapture, statsCapture } from '../trace/commands';
 import { TraceService } from '../trace/service';
 import { ResolveTraceContextOptions, TraceContext, TraceTargetArch } from '../trace/types';
 
@@ -23,6 +24,10 @@ export class TraceFrontend {
             vscode.commands.registerCommand('platformio-debug.trace.startCapture', this.startCapture.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.stopCapture', this.stopCapture.bind(this)),
             vscode.commands.registerCommand('platformio-debug.trace.dumpCapture', this.dumpCapture.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.decode', this.decodeCaptureCmd.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.stats', this.statsCaptureCmd.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.history', this.historyCaptureCmd.bind(this)),
+            vscode.commands.registerCommand('platformio-debug.trace.profile', this.profileCaptureCmd.bind(this)),
         );
 
         return disposables;
@@ -141,6 +146,17 @@ export class TraceFrontend {
         }
     }
 
+    private async openCaptureFile(title: string): Promise<string | undefined> {
+        const uris = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            filters: { 'ESP Trace': ['esptrace', 'elf'], 'All files': ['*'] },
+            title,
+        });
+        return uris?.[0]?.fsPath;
+    }
+
     private async pickCaptureFile(defaultName: string): Promise<string | undefined> {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const uris = await vscode.window.showSaveDialog({
@@ -189,6 +205,100 @@ export class TraceFrontend {
             vscode.window.showInformationMessage(`Trace buffers dumped to ${file}`);
         } catch {
             // Error already reported to the trace output channel.
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Decode / stats / history / profile
+    // ------------------------------------------------------------------
+
+    private async decodeCaptureCmd(): Promise<void> {
+        const scope = await vscode.window.showQuickPick(
+            [
+                { label: 'Full decode', last: undefined as number | undefined },
+                { label: 'Last 50 instructions before the fault', last: 50 },
+                { label: 'Last 200 instructions before the fault', last: 200 },
+                { label: 'Last 1000 instructions before the fault', last: 1000 },
+            ],
+            { title: 'ESP trace decode scope', placeHolder: 'How much of the trace to decode' }
+        );
+        if (scope === undefined) {
+            return;
+        }
+        await this.runTraceAnalysis('decode', { last: scope.last }, true);
+    }
+
+    private async statsCaptureCmd(): Promise<void> {
+        await this.runTraceAnalysis('stats', {}, false);
+    }
+
+    private async historyCaptureCmd(): Promise<void> {
+        await this.runTraceAnalysis('history', {}, false);
+    }
+
+    private async profileCaptureCmd(): Promise<void> {
+        await this.runTraceAnalysis('profile', {}, true);
+    }
+
+    private async runTraceAnalysis(
+        kind: 'decode' | 'stats' | 'history' | 'profile',
+        extra: Partial<CommandOptions>,
+        asDocument: boolean
+    ): Promise<void> {
+        const channel = this.requireOutputChannel();
+        const file = await this.openCaptureFile(`Select trace capture to ${kind}`);
+        if (!file) {
+            return;
+        }
+        channel.appendLine(`> ${kind} ${file}`);
+        try {
+            const options = await this.buildResolveOptions();
+            const config = vscode.workspace.getConfiguration('platformio-debug').get<Record<string, any>>('trace', {});
+            const cmdOptions: CommandOptions = {
+                elfPath: options.elfPath,
+                addr2linePath: options.addr2linePath,
+                chip: options.chip,
+                romElfPath: options.romElfPath,
+                warn: (message) => channel.appendLine(`Warning: ${message}`),
+                ...extra,
+            };
+            if (kind === 'profile') {
+                cmdOptions.profileFormat = config.profileFormat === 'speedscope' ? 'speedscope' : 'folded';
+            }
+            if (kind === 'history' && config.historyJson === true) {
+                cmdOptions.asJson = true;
+            }
+
+            let result: CommandResult;
+            if (kind === 'decode') {
+                result = await decodeCapture(file, cmdOptions);
+            } else if (kind === 'stats') {
+                result = await statsCapture(file, cmdOptions);
+            } else if (kind === 'history') {
+                result = await historyCapture(file, cmdOptions);
+            } else {
+                result = await profileCapture(file, cmdOptions);
+            }
+
+            if (result.summary !== undefined) {
+                channel.appendLine(result.summary);
+            }
+            const text = result.lines.join('\n') + '\n';
+            if (asDocument) {
+                const doc = await vscode.workspace.openTextDocument({
+                    content: text,
+                    language: kind === 'profile' && cmdOptions.profileFormat === 'speedscope' ? 'json' : 'plaintext',
+                });
+                await vscode.window.showTextDocument(doc, { preview: false });
+            } else {
+                channel.append(text);
+                channel.show(true);
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            channel.appendLine(`${kind} failed: ${message}`);
+            channel.show(true);
+            vscode.window.showErrorMessage(`Trace ${kind} failed: ${message}`);
         }
     }
 

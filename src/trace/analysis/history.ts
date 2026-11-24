@@ -35,7 +35,7 @@ export const EXCEPTION_NAMES: Record<number, string> = {
 };
 
 // Environment calls are requests the handler serves and returns from, not faults
-const ECALL_CAUSES = new Set([8, 9, 11]);
+export const ECALL_CAUSES = new Set([8, 9, 11]);
 
 // Longest run of items that folds into a loop
 export const MAX_LOOP_PERIOD = 16;
@@ -48,7 +48,7 @@ const LOOP_LOOKBACK = 4096;
 
 // The FreeRTOS function that picks the next task. A trap handler that calls it can resume another task, which
 // tasks that yield through the same code do at the very instruction the trap interrupted.
-const SCHEDULER_FUNCTIONS = new Set(['vTaskSwitchContext']);
+export const SCHEDULER_FUNCTIONS = new Set(['vTaskSwitchContext']);
 
 const SCHEDULER_SWITCH = 'the trap handler ran the scheduler and resumed another task at the interrupted instruction';
 
