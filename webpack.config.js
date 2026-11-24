@@ -17,6 +17,7 @@ module.exports = [
         externals: {
             vscode: 'vscode',
             '@vscode/debugadapter': '@vscode/debugadapter',
+            'pioarduino-node-helpers': 'commonjs pioarduino-node-helpers',
         },
         resolve: {
             extensions: ['.ts', '.js'],

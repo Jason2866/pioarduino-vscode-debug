@@ -9,6 +9,7 @@ import { MemoryTreeProvider } from './frontend/memory_tree_provider';
 import { PeripheralTreeProvider, RecordType as PeripheralRecordType } from './frontend/peripheral';
 import { RegisterTreeProvider, RecordType as RegisterRecordType } from './frontend/registers';
 import { getDiagnosticsManager } from './frontend/diagnostics';
+import { TraceFrontend } from './frontend/trace';
 
 /**
  * Main entry point and controller for the PlatformIO Debug VS Code extension.
@@ -23,6 +24,7 @@ class PlatformIODebugExtension {
     private disassemblyTreeProvider: DisassemblyTreeProvider;
     private memoryContentProvider: MemoryContentProvider;
     private diagnostics = getDiagnosticsManager();
+    private traceFrontend: TraceFrontend;
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
@@ -31,6 +33,7 @@ class PlatformIODebugExtension {
         this.memoryTreeProvider = new MemoryTreeProvider();
         this.disassemblyTreeProvider = new DisassemblyTreeProvider();
         this.memoryContentProvider = new MemoryContentProvider();
+        this.traceFrontend = new TraceFrontend();
 
         // Apply workspace configuration defaults for memory and diagnostics settings.
         const cfg = vscode.workspace.getConfiguration('platformio-debug');
@@ -62,6 +65,7 @@ class PlatformIODebugExtension {
             vscode.window.registerTreeDataProvider('platformio-debug.disassembly', this.disassemblyTreeProvider),
             vscode.workspace.registerTextDocumentContentProvider('examinememory', this.memoryContentProvider),
             vscode.workspace.registerTextDocumentContentProvider('disassembly', new DisassemblyContentProvider()),
+            ...this.traceFrontend.register(context),
 
             vscode.commands.registerCommand('platformio-debug.peripherals.updateNode', this.peripheralsUpdateNode.bind(this)),
             vscode.commands.registerCommand('platformio-debug.peripherals.selectedNode', this.peripheralsSelectedNode.bind(this)),
