@@ -7,7 +7,8 @@ import { DiagnosticAccumulator, TraceDiagnostic } from './analysis/diagnostics';
 import { buildHistory, History, isFault } from './analysis/history';
 import { buildProfile, mergeProfiles, Profile } from './analysis/profile';
 import { StatsAccumulator, StatsSnapshot, mergeStatsSnapshots } from './analysis/stats';
-import { CodeImage } from './elf/image';
+import { CodeImage, ElfImage } from './elf/image';
+import { LayeredImage } from './elf/layered';
 import { SourceResolver } from './elf/resolver';
 import { PrefetchedResolver, resolveSourceLines } from './elf/addr2lineResolver';
 import { formatDiagnostic, formatEvent, formatNote, formatRawBuffer, GapCoalescer } from './exporters/text';
@@ -16,7 +17,7 @@ import { formatHistory, historyToDict } from './exporters/history';
 import { formatStats } from './exporters/statsText';
 import { formatFolded, profileToSpeedscope } from './exporters/profile';
 import { TraceEvent, TraceTrap } from './ir/events';
-import { CoreView, Session, iterCores, openSession } from './session';
+import { CoreView, Session, UsageError, iterCores, openSession } from './session';
 import { RomStatus, resolveRomElf } from './elf/rom';
 import * as fs from 'fs';
 
@@ -97,6 +98,21 @@ function prepareCores(capturePath: string, options: CommandOptions): { session: 
                 options.warn?.('ROM ELF not searched, IDF_PATH or ESP_ROM_ELF_DIR is not set. Pass romElfPath to use one');
             } else if (status === RomStatus.NOT_FOUND) {
                 options.warn?.(`ROM ELF not found for ${romPath ?? `${session.chip} revision ${revision}`}, continuing without it`);
+            }
+        }
+        // Layer the ROM under the app image so ROM-only addresses decode,
+        // mirroring upstream's LayeredImage. A bad ROM keeps the app image.
+        if (
+            session.romElfPath !== undefined &&
+            session.image instanceof ElfImage &&
+            fs.existsSync(session.romElfPath)
+        ) {
+            try {
+                session.image = new LayeredImage(session.image, new ElfImage(session.romElfPath));
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                options.warn?.(`cannot open ROM ELF ${session.romElfPath}: ${message}, continuing without it`);
+                session.romElfStatus = RomStatus.INVALID;
             }
         }
     }
@@ -182,6 +198,9 @@ export async function decodeCapture(capturePath: string, options: CommandOptions
         );
         let stream: Iterable<TraceEvent> = events;
         if (options.last !== undefined) {
+            if (!Number.isInteger(options.last) || options.last < 0) {
+                throw new UsageError(`last must be a nonnegative integer, got ${options.last}`);
+            }
             stream = lastBeforeFault(lines, stream, options.last);
         }
         for (const ev of stream) {

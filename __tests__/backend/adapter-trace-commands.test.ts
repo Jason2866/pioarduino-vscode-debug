@@ -176,6 +176,20 @@ describe('adapter.ts — trace-* custom requests', () => {
         );
     });
 
+    test('trace-start escapes Tcl metacharacters in the file path', () => {
+        session.miDebugger.sendCommand.mockReturnValue(resolveWith(''));
+        const response = makeResponse();
+
+        // Jim Tcl double-quote rules: \ " $ [ ] all need a backslash escape.
+        session.customRequest('trace-dump', response, { file: 'C:\\tmp\\cap[1]$.esptrace' });
+
+        expect(session.miDebugger.sendCommand).toHaveBeenCalledWith(
+            'interpreter-exec console "monitor esp riscv_trace dump \\"C:\\\\\\\\tmp\\\\\\\\cap\\\\[1\\\\]\\\\$.esptrace\\""',
+            false,
+            true
+        );
+    });
+
     test('trace-start without file returns an error response', () => {
         const response = makeResponse();
 

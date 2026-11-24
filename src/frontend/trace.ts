@@ -70,7 +70,7 @@ export class TraceFrontend {
         }
         channel.appendLine(`Inspecting trace capture: ${uri.fsPath}`);
         try {
-            const options = await this.buildResolveOptions();
+            const options = await this.resolveToolchainOptions(channel);
             const session = openSession(uri.fsPath, {
                 elfPath: options.elfPath,
                 chip: options.chip,
@@ -109,9 +109,17 @@ export class TraceFrontend {
     }
 
     private async traceRequest(command: string, args?: any): Promise<any> {
-        const session = this.requireDebugSession();
         const channel = this.requireOutputChannel();
         channel.appendLine(`> ${command} ${args ? JSON.stringify(args) : ''}`);
+        let session: vscode.DebugSession;
+        try {
+            session = this.requireDebugSession();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            channel.appendLine(`Trace command ${command} failed: ${message}`);
+            channel.show(true);
+            throw error;
+        }
         try {
             const result = await session.customRequest(command, args ?? {});
             const output = result && result.output ? result.output : '';
@@ -252,7 +260,7 @@ export class TraceFrontend {
         }
         channel.appendLine(`> ${kind} ${file}`);
         try {
-            const options = await this.buildResolveOptions();
+            const options = await this.resolveToolchainOptions(channel);
             const config = vscode.workspace.getConfiguration('platformio-debug').get<Record<string, any>>('trace', {});
             const cmdOptions: CommandOptions = {
                 elfPath: options.elfPath,
@@ -299,6 +307,33 @@ export class TraceFrontend {
             channel.appendLine(`${kind} failed: ${message}`);
             channel.show(true);
             vscode.window.showErrorMessage(`Trace ${kind} failed: ${message}`);
+        }
+    }
+
+    /**
+     * Build resolve options, then run PlatformIO toolchain discovery so the
+     * analysis commands get the discovered ELF/addr2line paths even when the
+     * `platformio-debug.trace.*` settings are empty. Falls back to the
+     * configured values when discovery fails.
+     */
+    private async resolveToolchainOptions(channel: vscode.OutputChannel): Promise<ResolveTraceContextOptions> {
+        const options = await this.buildResolveOptions();
+        try {
+            const context = await this.service.resolveContext(options);
+            for (const warning of context.warnings) {
+                channel.appendLine(`Warning: ${warning}`);
+            }
+            return {
+                ...options,
+                elfPath: context.elfPath ?? options.elfPath,
+                chip: context.chip ?? options.chip,
+                addr2linePath: context.addr2linePath ?? options.addr2linePath,
+                romElfPath: context.romElfPath ?? options.romElfPath,
+            };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            channel.appendLine(`Trace context resolution failed, using configured paths: ${message}`);
+            return options;
         }
     }
 

@@ -21,7 +21,7 @@ import {
     elfSymbolName,
     elfStringTable,
     elfSymbols,
-    parseElfCoreFile,
+    parseElfProgramHeaders,
     parseElfSections,
 } from './core';
 
@@ -70,7 +70,9 @@ export class ElfImage implements CodeImage {
         }
         let elf;
         try {
-            elf = parseElfCoreFile(this.bytes);
+            // Headers only: parseElfCoreFile would copy every PT_LOAD payload
+            // and parse notes that an executable image never uses.
+            elf = parseElfProgramHeaders(this.bytes);
             this.sections = parseElfSections(this.bytes).sections;
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -121,7 +123,8 @@ export class ElfImage implements CodeImage {
         if (this.sha256Digest === undefined) {
             this.sha256Digest = crypto.createHash('sha256').update(this.bytes).digest();
         }
-        return this.sha256Digest;
+        // Callers must not be able to mutate the cached digest.
+        return Buffer.from(this.sha256Digest);
     }
 
     /** Return `size` bytes from executable memory at `vaddr`. */
@@ -156,7 +159,9 @@ export class ElfImage implements CodeImage {
             );
         }
         const off = vaddr - region.vaddr;
-        return region.data.subarray(off, off + size);
+        // Copy: region.data is shared with the ELF bytes, and a caller mutating
+        // the result must not change later reads.
+        return Buffer.from(region.data.subarray(off, off + size));
     }
 
     /** Return the name of the STT_FUNC that covers `vaddr`, or undefined. */
@@ -182,11 +187,16 @@ export class ElfImage implements CodeImage {
         if (i < 0) {
             return undefined;
         }
-        const [start, size, name] = entries[i];
-        if (vaddr >= start + size) {
-            return undefined;
+        // Objects can nest: an earlier, larger object may still cover vaddr
+        // when the latest-starting one has ended. Walk back to the covering
+        // entry with the latest start.
+        for (let j = i; j >= 0 && starts[j] <= vaddr; j--) {
+            const [start, size, name] = entries[j];
+            if (vaddr < start + size) {
+                return vaddr === start ? name : `${name}+${vaddr - start}`;
+            }
         }
-        return vaddr === start ? name : `${name}+${vaddr - start}`;
+        return undefined;
     }
 
     private lookupSymbol(vaddr: number): string | undefined {

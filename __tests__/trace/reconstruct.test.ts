@@ -82,14 +82,16 @@ describe('decodeEvents end-to-end', () => {
 
     test('instruction pcs stay inside executable segments or produce gaps', () => {
         const events = decodeFixture('esp32c6_stop.esptrace', 'esp32c6.elf');
+        const image = new ElfImage(path.join(FIXTURES, 'esp32c6.elf'));
         const instructions = events.filter((e) => e.event === 'instruction');
         expect(instructions.length).toBeGreaterThan(0);
         for (const insn of instructions) {
             if (insn.event !== 'instruction') {
                 continue;
             }
-            expect(insn.pc).toBeGreaterThanOrEqual(0);
-            expect(insn.pc).toBeLessThan(0x100000000);
+            // Every decoded instruction must live in an executable segment;
+            // a wrong PC would fail the image read the decoder itself relies on.
+            expect(() => image.read(insn.pc, insn.length)).not.toThrow();
         }
     });
 });

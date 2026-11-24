@@ -769,8 +769,9 @@ export class HistoryBuilder {
 
     private replaceTail(start: number, loop: HistoryLoop): void {
         const bodyKeys = this.keys.slice(this.keys.length - loop.body.length);
-        this.items = this.items.slice(0, start);
-        this.keys = this.keys.slice(0, start);
+        // Truncate in place: slicing would copy the whole prefix on every fold.
+        this.items.length = start;
+        this.keys.length = start;
         this.items.push(loop);
         this.keys.push(['loop', bodyKeys]);
     }

@@ -5,6 +5,7 @@ import { TraceError } from '../errors';
 
 export const ELF_MAGIC = Buffer.from([0x7f, 0x45, 0x4c, 0x46]); // \x7fELF
 
+export const PT_NULL = 0;
 export const PT_LOAD = 1;
 export const PT_NOTE = 4;
 export const ET_CORE = 4;
@@ -70,10 +71,13 @@ export interface ElfSegmentData {
     data: Buffer;
 }
 
-export interface ParsedElfCore {
+export interface ParsedElfHeaders {
     e_type: number;
     e_machine: number;
     programHeaders: ElfProgramHeader[];
+}
+
+export interface ParsedElfCore extends ParsedElfHeaders {
     notes: ElfNoteEntry[];
     loads: ElfSegmentData[];
 }
@@ -83,8 +87,7 @@ export function isElf(data: Buffer | Uint8Array): boolean {
     return b.length >= 4 && b.subarray(0, 4).equals(ELF_MAGIC);
 }
 
-export function parseElfCoreFile(data: Buffer | Uint8Array): ParsedElfCore {
-    const b = Buffer.isBuffer(data) ? data : Buffer.from(data);
+function checkElfHeader(b: Buffer): void {
     if (b.length < 52) {
         throw new TraceError(`ELF file is only ${b.length} bytes, need at least 52 for the ELF32 header`);
     }
@@ -99,6 +102,12 @@ export function parseElfCoreFile(data: Buffer | Uint8Array): ParsedElfCore {
     if (dataEncoding !== 1) {
         throw new TraceError(`unsupported ELF data encoding ${dataEncoding}, only little-endian is supported`);
     }
+}
+
+/** Parse the ELF header and program header table without touching segment payloads. */
+export function parseElfProgramHeaders(data: Buffer | Uint8Array): ParsedElfHeaders {
+    const b = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    checkElfHeader(b);
 
     const eType = b.readUInt16LE(16);
     const eMachine = b.readUInt16LE(18);
@@ -126,10 +135,21 @@ export function parseElfCoreFile(data: Buffer | Uint8Array): ParsedElfCore {
             p_align: b.readUInt32LE(off + 28),
         });
     }
+    return { e_type: eType, e_machine: eMachine, programHeaders };
+}
+
+export function parseElfCoreFile(data: Buffer | Uint8Array): ParsedElfCore {
+    const b = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    const { e_type: eType, e_machine: eMachine, programHeaders } = parseElfProgramHeaders(b);
 
     const loads: ElfSegmentData[] = [];
     const notes: ElfNoteEntry[] = [];
     for (const ph of programHeaders) {
+        // PT_NULL entries carry undefined fields, so they are skipped before
+        // any file-range validation.
+        if (ph.p_type === PT_NULL) {
+            continue;
+        }
         const start = ph.p_offset;
         const end = start + ph.p_filesz;
         if (end > b.length) {
@@ -151,22 +171,16 @@ export function parseElfCoreFile(data: Buffer | Uint8Array): ParsedElfCore {
 /** Parse the ELF32 section header table, resolving names through shstrtab. */
 export function parseElfSections(data: Buffer | Uint8Array): ParsedElfSections {
     const b = Buffer.isBuffer(data) ? data : Buffer.from(data);
-    if (b.length < 52) {
-        throw new TraceError(`ELF file is only ${b.length} bytes, need at least 52 for the ELF32 header`);
-    }
-    const elfClass = b.readUInt8(4);
-    const dataEncoding = b.readUInt8(5);
-    if (elfClass !== 1) {
-        throw new TraceError(`unsupported ELF class ${elfClass}, only ELFCLASS32 is supported`);
-    }
-    if (dataEncoding !== 1) {
-        throw new TraceError(`unsupported ELF data encoding ${dataEncoding}, only little-endian is supported`);
-    }
+    checkElfHeader(b);
     const eShoff = b.readUInt32LE(32);
     const eShentsize = b.readUInt16LE(46);
     const eShnum = b.readUInt16LE(48);
     const eShstrndx = b.readUInt16LE(50);
 
+    // An executable ELF may carry no section header table at all.
+    if (eShnum === 0) {
+        return { sections: [] };
+    }
     if (eShentsize < 40) {
         throw new TraceError(`invalid ELF section header entry size ${eShentsize}`);
     }
@@ -259,7 +273,9 @@ export function elfStringTable(
 }
 
 function align4(n: number): number {
-    return (n + 3) & ~3;
+    // Non-bitwise padding: note lengths are u32 and `(n + 3) & ~3` would wrap
+    // negative through int32 for lengths near 2^32.
+    return n + ((4 - (n % 4)) % 4);
 }
 
 function parseNotes(seg: Buffer): ElfNoteEntry[] {
@@ -274,7 +290,7 @@ function parseNotes(seg: Buffer): ElfNoteEntry[] {
         const nameEnd = off + align4(namesz);
         const descStart = nameEnd;
         const descEnd = descStart + align4(descsz);
-        if (descEnd > seg.length) {
+        if (nameEnd > seg.length || descEnd > seg.length) {
             throw new TraceError('ELF note is truncated');
         }
         const rawName = seg.subarray(off, off + namesz);

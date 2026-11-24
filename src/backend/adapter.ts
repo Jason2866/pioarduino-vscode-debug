@@ -273,7 +273,10 @@ export class GDBDebugSession extends DebugSession {
             return;
         }
 
-        const quotePath = (p: string): string => `"${p.replace(/"/g, '\\"')}"`;
+        // The monitor string runs as a Jim Tcl script inside double quotes, so
+        // Tcl metacharacters in the path (\, ", $, [, ]) must be escaped too —
+        // e.g. a Windows path's `\t` would otherwise become a tab.
+        const quotePath = (p: string): string => `"${p.replace(/[\\"$[\]]/g, '\\$&')}"`;
         let monitorCmd: string;
         switch (command) {
             case 'trace-probe':

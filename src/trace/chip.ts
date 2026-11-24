@@ -43,7 +43,8 @@ export const TRACE_SUPPORTED_CHIPS: ReadonlySet<string> = new Set([
 
 /** Architecture family for a chip / IDF target name. */
 export function chipArch(chip: string): ChipArch {
-    return XTENSA_SET.has(chip.toLowerCase()) ? 'xtensa' : 'riscv';
+    // Normalize like isTraceSupportedChip: 'ESP32-S3' is Xtensa too.
+    return XTENSA_SET.has(normalizeChipName(chip)) ? 'xtensa' : 'riscv';
 }
 
 export function normalizeChipName(chip: string): string {

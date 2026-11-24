@@ -21,9 +21,6 @@ import {
     zcmMnemonic,
 } from './encoding';
 
-// Program counters are 32 bits wide
-const PC_MASK = 0xffffffff;
-
 export interface DecodedInsn {
     length: number; // 2 or 4 bytes
     cls: InsnClass;
@@ -89,11 +86,11 @@ function decodeRv32i(pc: number, insn: number): DecodedInsn {
         if (!BRANCH_FUNCT3.has(funct3)) {
             return makeInsn(4, InsnClass.NONE);
         }
-        const target = (pc + bImm(insn)) & PC_MASK;
+        const target = (pc + bImm(insn)) >>> 0;
         return makeInsn(4, InsnClass.BRANCH, target);
     }
     if (opcode === OPCODE_JAL) {
-        const target = (pc + jImm(insn)) & PC_MASK;
+        const target = (pc + jImm(insn)) >>> 0;
         return makeInsn(4, InsnClass.JUMP, target, jumpLink(rd, undefined));
     }
     if (opcode === OPCODE_JALR) {
@@ -147,16 +144,16 @@ function decodeRvcOp01(pc: number, insn: number): DecodedInsn {
     const funct3 = (insn >> 13) & 0x7;
     if (funct3 === 0x1) {
         // c.jal
-        const target = (pc + cjImm(insn)) & PC_MASK;
+        const target = (pc + cjImm(insn)) >>> 0;
         return makeInsn(2, InsnClass.JUMP, target, LinkKind.CALL);
     }
     if (funct3 === 0x5) {
         // c.j
-        const target = (pc + cjImm(insn)) & PC_MASK;
+        const target = (pc + cjImm(insn)) >>> 0;
         return makeInsn(2, InsnClass.JUMP, target, LinkKind.JUMP);
     }
     if (funct3 === 0x6 || funct3 === 0x7) {
-        const target = (pc + cbImm(insn)) & PC_MASK;
+        const target = (pc + cbImm(insn)) >>> 0;
         return makeInsn(2, InsnClass.BRANCH, target);
     }
     return makeInsn(2, InsnClass.NONE);

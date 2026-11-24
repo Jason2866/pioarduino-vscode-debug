@@ -18,8 +18,9 @@ const GOLDEN = path.join(FIXTURES, 'golden');
 
 function rel(...parts: string[]): string {
     // Commands record the path as given; keep the repo-relative spelling the
-    // goldens were generated with.
-    return path.relative(process.cwd(), path.join(FIXTURES, ...parts));
+    // goldens were generated with. Forward slashes keep the speedscope `name`
+    // field identical on Windows.
+    return path.relative(process.cwd(), path.join(FIXTURES, ...parts)).split(path.sep).join('/');
 }
 
 function golden(name: string): string {
@@ -38,7 +39,11 @@ function addr2linePath(): string | undefined {
 
 const hasAddr2line = addr2linePath() !== undefined;
 
-describe('trace commands parity with upstream esp-riscv-trace', () => {
+// Golden outputs contain DWARF file/line columns, so the byte comparison needs
+// the PIO RISC-V addr2line. Skip rather than fail on hosts without it.
+const parityDescribe = hasAddr2line ? describe : describe.skip;
+
+parityDescribe('trace commands parity with upstream esp-riscv-trace', () => {
     jest.setTimeout(120_000);
 
     test('decode --last 50 on esp32c5 stop', async () => {
@@ -113,6 +118,10 @@ describe('trace commands parity with upstream esp-riscv-trace', () => {
         });
         expect(normalize(result.lines.join('\n') + '\n')).toBe(golden('profile_c5_panic_folded.txt'));
     });
+});
+
+describe('trace commands without addr2line', () => {
+    jest.setTimeout(120_000);
 
     test('profile speedscope on esp32c6 panic', async () => {
         const result = await profileCapture(rel('esp32c6_panic_stop.esptrace'), {

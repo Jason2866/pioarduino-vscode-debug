@@ -22,7 +22,8 @@ export function profileAddressBits(profile: DecoderProfile): number {
 }
 
 export function profilePcFromRaw(profile: DecoderProfile, rawAddress: number): number {
-    return rawAddress << profile.iaddress_lsb;
+    // `<<` yields a signed int32; PCs at or above 0x80000000 must stay unsigned.
+    return (rawAddress << profile.iaddress_lsb) >>> 0;
 }
 
 const ET20 = abi.PacketFormat.EFFICIENT_TRACE_2_0;

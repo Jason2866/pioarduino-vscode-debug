@@ -8,7 +8,7 @@
 // code, lost trace, a task switch and a trap handler that ran the scheduler end a walk. A trap handler that returned to
 // where it was taken and a call to untraced code that returned are crossed by the calling convention.
 
-import { A0, A1, ECALL_LENGTH, GP, MASK32, RA, S_REGS, SP, TP, XLEN_BYTES } from '../decoder/encoding';
+import { A0, A1, ECALL_LENGTH, GP, RA, S_REGS, SP, TP, XLEN_BYTES } from '../decoder/encoding';
 import { GapReason } from '../decoder/reconstruct';
 import { decodeAt, evaluate, insnText, InsnInfo, LINKS, sources } from '../decoder/semantics';
 import { CodeImage } from '../elf/image';
@@ -189,6 +189,12 @@ export class FaultWindowBuilder {
         this.pushed++;
         while (this.events.length - this.head > WINDOW_EVENTS) {
             this.head++;
+        }
+        if (this.head >= WINDOW_EVENTS) {
+            // Drop the consumed prefix so memory stays bounded by the window,
+            // not by the trace length. `pushed` keeps the total count.
+            this.events = this.events.slice(this.head);
+            this.head = 0;
         }
         if (event.event === 'trap' && endsHistory(event, this.endInterrupts)) {
             this.fault = event;
@@ -1213,12 +1219,18 @@ function lost(gap: TraceGap): boolean {
 function asLoaded(stored: number, width: number, signed: boolean): number {
     /** What a load of width bytes reads back from the bytes a store of the value stored wrote. */
     const bits = 8 * width;
-    const mask = bits >= 32 ? MASK32 : (1 << bits) - 1;
-    const value = stored & mask;
-    if (signed && bits < 32 && value >= 1 << (bits - 1)) {
-        return value | (MASK32 & ~mask);
+    let value: number;
+    if (bits >= 32) {
+        // `& mask` would go through signed int32 and return -1 for 0xffffffff.
+        value = stored >>> 0;
+    } else {
+        const mask = (1 << bits) - 1;
+        value = stored & mask;
+        if (signed && value >= 1 << (bits - 1)) {
+            value |= ~mask;
+        }
     }
-    return value;
+    return value >>> 0;
 }
 
 function isCopy(info: InsnInfo): boolean {

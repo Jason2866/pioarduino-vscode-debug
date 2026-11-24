@@ -165,6 +165,8 @@ export function findRomElf(packagesDir: string, chipName: string): string | unde
 
     try {
         const entries = fs.readdirSync(romElfsDir);
+        // Patterns are in priority order: the first group with any match wins,
+        // so a loose fallback cannot displace an exact `_revN` file.
         const patterns = [
             new RegExp(`^${chipName}_rev\\d+_rom\\.elf$`),
             new RegExp(`^${chipName}_rev\\d+\\.elf$`),
@@ -172,26 +174,19 @@ export function findRomElf(packagesDir: string, chipName: string): string | unde
             new RegExp(`^${chipName}.*\\.elf$`),
         ];
 
-        const matches: string[] = [];
         for (const pattern of patterns) {
-            for (const entry of entries) {
-                if (pattern.test(entry) && !matches.includes(entry)) {
-                    matches.push(entry);
-                }
+            const matches = entries.filter((entry) => pattern.test(entry));
+            if (matches.length === 0) {
+                continue;
             }
+            matches.sort((a, b) => {
+                const revA = a.match(/_rev(\d+)/);
+                const revB = b.match(/_rev(\d+)/);
+                return (revA ? parseInt(revA[1]) : 1e9) - (revB ? parseInt(revB[1]) : 1e9);
+            });
+            return path.join(romElfsDir, matches[0]);
         }
-
-        if (matches.length === 0) {
-            return undefined;
-        }
-
-        matches.sort((a, b) => {
-            const revA = a.match(/_rev(\d+)/);
-            const revB = b.match(/_rev(\d+)/);
-            return (revA ? parseInt(revA[1]) : 1e9) - (revB ? parseInt(revB[1]) : 1e9);
-        });
-
-        return path.join(romElfsDir, matches[0]);
+        return undefined;
     } catch {
         return undefined;
     }
@@ -532,12 +527,11 @@ function selectPioCandidate(
         }
     }
 
-    if (pool.length === 1) {
+    // A lone candidate is only trustworthy when nothing pinned the choice: an
+    // explicit ELF outside the build dir must not adopt an unrelated env's ELF.
+    // An env-filtered pool is fine because requestedEnv already scoped it.
+    if (pool.length === 1 && (!elfPath || requestedEnv !== undefined)) {
         return pool[0];
-    }
-
-    if (!requestedEnv && !elfPath && candidates.length === 1) {
-        return candidates[0];
     }
 
     return undefined;

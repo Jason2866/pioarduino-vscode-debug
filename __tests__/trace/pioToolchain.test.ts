@@ -49,8 +49,14 @@ describe('pioToolchain trace context', () => {
     let workspace: string;
     let coreDir: string;
     let packagesDir: string;
+    const originalWorkspaceDir = process.env.PLATFORMIO_WORKSPACE_DIR;
+    const originalBuildDir = process.env.PLATFORMIO_BUILD_DIR;
 
     beforeEach(() => {
+        // PlatformIO env vars would redirect build/workspace discovery away
+        // from the fixture tree.
+        delete process.env.PLATFORMIO_WORKSPACE_DIR;
+        delete process.env.PLATFORMIO_BUILD_DIR;
         root = fs.mkdtempSync(path.join(os.tmpdir(), 'trace-pio-'));
         workspace = path.join(root, 'workspace');
         coreDir = path.join(root, 'core');
@@ -65,6 +71,16 @@ describe('pioToolchain trace context', () => {
 
     afterEach(() => {
         fs.rmSync(root, { recursive: true, force: true });
+        if (originalWorkspaceDir === undefined) {
+            delete process.env.PLATFORMIO_WORKSPACE_DIR;
+        } else {
+            process.env.PLATFORMIO_WORKSPACE_DIR = originalWorkspaceDir;
+        }
+        if (originalBuildDir === undefined) {
+            delete process.env.PLATFORMIO_BUILD_DIR;
+        } else {
+            process.env.PLATFORMIO_BUILD_DIR = originalBuildDir;
+        }
     });
 
     function writeRiscvToolchain(chip = 'esp32c6'): void {

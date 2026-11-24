@@ -46,7 +46,10 @@ function loadTargetRoms(target: string, idfPath: string): Array<Record<string, u
         if (!Array.isArray(candidate) || candidate.length === 0) {
             continue;
         }
-        return candidate as Array<Record<string, unknown>>;
+        // roms.json entries must be objects; skip nulls and scalars.
+        return candidate.filter(
+            (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null
+        );
     }
     return [];
 }

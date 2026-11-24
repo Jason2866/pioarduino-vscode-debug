@@ -244,6 +244,14 @@ export function* iterCores(session: Session, coreFilter?: number): Generator<Cor
             continue;
         }
         const profile = resolveProfile(session.chip, core.encoder_params);
+        if (core.packet_format !== profile.packet_format) {
+            throw new UsageError(
+                `core ${core.core_id} declares packet format ` +
+                    `${abi.enumName(abi.PacketFormat, core.packet_format)} ` +
+                    `but chip ${session.chip} decodes as ` +
+                    `${abi.enumName(abi.PacketFormat, profile.packet_format)}`
+            );
+        }
         const linear = linearize(core);
         const note = buildCaptureNote(session, core, profile, linear);
         if (!session.forceElf && note.elf_sha_status === ElfShaStatus.MISMATCH) {

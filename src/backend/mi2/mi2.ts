@@ -26,6 +26,9 @@ export class MI2 extends EventEmitter {
     private buffer: string;
     private errbuf: string;
     private consoleHistory: string[] = [];
+    // Records evicted from the front of consoleHistory, so a capture cursor
+    // taken before eviction still resolves to the right slice.
+    private consoleDropped = 0;
     private static readonly CONSOLE_HISTORY_LIMIT = 512;
 
     constructor(
@@ -163,7 +166,9 @@ export class MI2 extends EventEmitter {
                             if (record.type === 'console' || record.type === 'target') {
                                 this.consoleHistory.push(record.content);
                                 if (this.consoleHistory.length > MI2.CONSOLE_HISTORY_LIMIT) {
-                                    this.consoleHistory.splice(0, this.consoleHistory.length - MI2.CONSOLE_HISTORY_LIMIT);
+                                    const removed = this.consoleHistory.length - MI2.CONSOLE_HISTORY_LIMIT;
+                                    this.consoleHistory.splice(0, removed);
+                                    this.consoleDropped += removed;
                                 }
                             }
                             this.log(record.type, record.content);
@@ -612,11 +617,14 @@ export class MI2 extends EventEmitter {
     /** Sends numbered MI command; resolves on reply. Optionally captures console/target stream output. */
     sendCommand(command: string, suppressErrors: boolean = false, captureConsole: boolean = false): Promise<MINode> {
         const token = this.currentToken++;
-        const consoleStart = this.consoleHistory.length;
+        // Cursor in the logical stream (history + dropped), not the live array.
+        const consoleStart = this.consoleHistory.length + this.consoleDropped;
         return new Promise((resolve, reject) => {
             this.handlers[token] = (result: MINode) => {
                 if (captureConsole) {
-                    result.consoleOutput = this.consoleHistory.slice(consoleStart).join('');
+                    const from = consoleStart - this.consoleDropped;
+                    // A negative cursor means every captured record was evicted.
+                    result.consoleOutput = from < 0 ? '' : this.consoleHistory.slice(from).join('');
                 }
                 if (result && result.resultRecords && result.resultRecords.resultClass === 'error') {
                     if (suppressErrors) {

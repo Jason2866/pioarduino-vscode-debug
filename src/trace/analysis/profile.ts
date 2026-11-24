@@ -36,7 +36,11 @@ export function mergeProfiles(profiles: Iterable<Profile>): Profile {
     /** Join the runs of `profiles` in order. */
     const runs: Array<readonly [Stack, number]> = [];
     for (const profile of profiles) {
-        runs.push(...profile.runs);
+        // Append in a loop: spreading a huge run list into push() can exceed
+        // the engine's argument-count limit.
+        for (const run of profile.runs) {
+            runs.push(run);
+        }
     }
     return { runs, instructions: runs.reduce((sum, [, count]) => sum + count, 0) };
 }
