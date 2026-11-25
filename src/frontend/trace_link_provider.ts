@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { isSyntheticSourcePath } from '../trace/elf/locationPath';
 
-const FILE_LINE_RE = /\b((?:[a-zA-Z]:[\\/]|\/)?[^\s():"']+\.[a-zA-Z0-9_]+):(\d+)\b/g;
+const FILE_LINE_RE = /(?<=^|[\s(\["'])((?:[a-zA-Z]:[\\/]|\/)?[^\s():"']+\.[a-zA-Z0-9_]+):(\d+)\b/g;
 
 /**
  * Adds clickable `file:line` DocumentLinks to plain-text trace decode and origin documents.

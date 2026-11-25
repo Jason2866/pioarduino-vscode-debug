@@ -31,4 +31,12 @@ describe('locationPath', () => {
         expect(resolveSourceFilePath('??', ['/ws'], exists)).toBeUndefined();
         expect(resolveSourceFilePath('/missing/file.c', ['/ws'], exists)).toBeUndefined();
     });
+
+    test('resolveSourceFilePath prefers longest matching suffix when multiple files exist', () => {
+        const specific = path.resolve('/ws', 'components/net/src/app.c');
+        const generic = path.resolve('/ws', 'src/app.c');
+        const exists = (p: string) => p === specific || p === generic;
+
+        expect(resolveSourceFilePath('/build/components/net/src/app.c', ['/ws'], exists)).toBe(specific);
+    });
 });

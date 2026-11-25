@@ -72,19 +72,20 @@ describe('trace_webview', () => {
     test('TraceWebviewPanel renders CSP-protected HTML and dispatches messages', () => {
         let messageHandler: ((msg: any) => void) | undefined;
         const postMessage = jest.fn().mockResolvedValue(true);
+        const mockWebview = {
+            html: '',
+            postMessage,
+            onDidReceiveMessage: jest.fn((cb: any) => {
+                messageHandler = cb;
+                return { dispose: jest.fn() };
+            }),
+        };
         (vscode.window.createWebviewPanel as jest.Mock).mockReturnValue({
             title: '',
             reveal: jest.fn(),
             dispose: jest.fn(),
             onDidDispose: jest.fn().mockReturnValue({ dispose: jest.fn() }),
-            webview: {
-                html: '',
-                postMessage,
-                onDidReceiveMessage: jest.fn((cb: any) => {
-                    messageHandler = cb;
-                    return { dispose: jest.fn() };
-                }),
-            },
+            webview: mockWebview,
         });
 
         const analysis: TraceCaptureAnalysis = {
@@ -104,6 +105,14 @@ describe('trace_webview', () => {
             vscode.ViewColumn.One,
             expect.objectContaining({ enableScripts: true })
         );
+
+        const cspMatch = /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/.exec(mockWebview.html);
+        expect(cspMatch).not.toBeNull();
+        const csp = cspMatch![1];
+        expect(csp).toContain("default-src 'none'");
+        const scriptSrcMatch = /script-src\s+'nonce-([a-f0-9]+)'/.exec(csp);
+        expect(scriptSrcMatch).not.toBeNull();
+        expect(mockWebview.html).toContain(`<script nonce="${scriptSrcMatch![1]}">`);
 
         messageHandler?.({ type: 'openLocation', file: '/ws/src/main.c', line: 10 });
         expect(onOpenLocation).toHaveBeenCalledWith('/ws/src/main.c', 10, '/ws/fw.elf');

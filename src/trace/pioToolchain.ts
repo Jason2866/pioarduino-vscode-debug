@@ -430,7 +430,9 @@ export async function findPioElfCandidates(
         ? ini.normalizePioPath(sections['platformio']['core_dir'], workspaceFolder)
         : undefined;
     const projectName = ini.getProjectName(workspaceFolder, sections);
-    const pioBuildDir = options.buildDir ?? await ini.resolveBuildDir(workspaceFolder, sections, {
+    const pioBuildDir = options.buildDir
+        ? resolvePathFromWorkspace(workspaceFolder, options.buildDir)
+        : await ini.resolveBuildDir(workspaceFolder, sections, {
         resolvePlatformIOBuildDir: options.usePlatformIOConfig ? resolveBuildDirWithPlatformIO : undefined,
     });
 
@@ -549,7 +551,9 @@ export async function resolveTraceContext(
     const coreDir = options.coreDir ?? configuredCoreDir ?? getPioCoreDir();
     const packagesDir = options.packagesDir ?? getPioPackagesDir(coreDir);
 
-    const buildDir = options.buildDir ?? (sections
+    const buildDir = options.buildDir
+        ? resolvePathFromWorkspace(workspaceFolder, options.buildDir)
+        : (sections
         ? await ini.resolveBuildDir(workspaceFolder, sections, {
             resolvePlatformIOBuildDir: options.usePlatformIOConfig ? resolveBuildDirWithPlatformIO : undefined,
         })

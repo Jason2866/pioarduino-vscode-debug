@@ -114,6 +114,12 @@ export async function resolveSourceLinesWithGdb(
             }
         });
 
+        proc.stdin?.on('error', (error) => {
+            if (!settled) {
+                proc.kill();
+                finish(error);
+            }
+        });
         proc.stdin?.end(script);
     });
 

@@ -47,14 +47,26 @@ export function resolveSourceFilePath(
         }
     }
 
-    // Try stripping a foreign build-machine prefix up to a known project directory.
+    // Try stripping a foreign build-machine prefix up to a known project directory,
+    // preferring the longest (most specific) matching relative suffix first.
     const lower = posix.toLowerCase();
+    const candidates: string[] = [];
     for (const anchor of SUFFIX_ANCHORS) {
-        const idx = lower.lastIndexOf('/' + anchor);
-        const rel = idx !== -1 ? posix.slice(idx + 1) : lower.startsWith(anchor) ? posix : undefined;
-        if (!rel) {
-            continue;
+        if (lower.startsWith(anchor)) {
+            candidates.push(posix);
         }
+        let searchFrom = 0;
+        while (true) {
+            const idx = lower.indexOf('/' + anchor, searchFrom);
+            if (idx === -1) {
+                break;
+            }
+            candidates.push(posix.slice(idx + 1));
+            searchFrom = idx + 1;
+        }
+    }
+    const uniqueCandidates = [...new Set(candidates)].sort((a, b) => b.length - a.length);
+    for (const rel of uniqueCandidates) {
         for (const root of roots) {
             const candidate = path.resolve(root, rel);
             if (exists(candidate)) {

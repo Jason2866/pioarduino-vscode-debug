@@ -3,6 +3,7 @@
 // Text formatter for FaultWindow origin analysis.
 
 import { FaultWindow, RegisterStep } from '../analysis/origin';
+import { SP } from '../decoder/encoding';
 import { CodeImage } from '../elf/image';
 import { SourceResolver } from '../elf/resolver';
 import { oneLine } from './_format';
@@ -89,12 +90,13 @@ export function formatFaultOrigin(
         `fault: cause=${fault.cause}  epc=${epcText}  tval=${tvalText}  window_complete=${window.complete}`
     );
 
+    const hasSp = options.registers?.has(SP) === true;
     const regs = options.registers ?? new Map<number, number>();
     const calls = window.stackCalls(regs);
     lines.push('');
     lines.push(`unreturned calls (${calls.length}):`);
     if (calls.length === 0) {
-        lines.push('  (none)');
+        lines.push(hasSp ? '  (none)' : '  (unavailable - SP register not provided)');
     } else {
         for (const call of calls) {
             lines.push(`  ${formatPcPlace(call.pc, image, resolver)}  sp=${fmtAddr(call.sp)}`);

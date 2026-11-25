@@ -132,7 +132,9 @@ export function filterAndPaginateEvents(
                 continue;
             }
         }
-        if (firstFaultMatchIdx === -1 && row.kind === 'trap') {
+        const isFaultTarget =
+            core.origin.fault !== undefined ? core.events[i] === core.origin.fault : row.kind === 'trap';
+        if (firstFaultMatchIdx === -1 && isFaultTarget) {
             firstFaultMatchIdx = matched.length;
         }
         matched.push(row);

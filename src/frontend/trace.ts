@@ -165,6 +165,31 @@ export class TraceFrontend {
                         `head_valid=${view.core.head_valid} buffers=${buffers.length}`
                 );
             }
+            const cached = this.treeProvider.getCapture();
+            if (!cached || cached.capturePath !== uri.fsPath) {
+                try {
+                    const config = this.getTraceConfig();
+                    const core =
+                        typeof config.core === 'number' && Number.isInteger(config.core) && config.core >= 0
+                            ? config.core
+                            : undefined;
+                    const analysis = await analyzeCapture(uri.fsPath, {
+                        elfPath: options.elfPath,
+                        addr2linePath: options.addr2linePath,
+                        gdbPath: options.gdbPath,
+                        core,
+                        chip: options.chip,
+                        romElfPath: options.romElfPath,
+                        romElfPathHint: options.romElfPathHint,
+                        warn: (message) => channel.appendLine(`Warning: ${message}`),
+                    });
+                    if (analysis) {
+                        this.treeProvider.setCapture(analysis);
+                    }
+                } catch {
+                    // Keep openSession inspection working even if full analysis requires an ELF.
+                }
+            }
             channel.show(true);
             vscode.window.showInformationMessage(
                 `Trace capture loaded: ${session.chip}, ${cap.cores.length} core(s).`
@@ -452,10 +477,10 @@ export class TraceFrontend {
                 warn: (message) => channel.appendLine(`Warning: ${message}`),
                 ...extra,
             };
-            if (kind === 'profile') {
+            if (kind === 'profile' && cmdOptions.profileFormat === undefined) {
                 cmdOptions.profileFormat = config.profileFormat === 'speedscope' ? 'speedscope' : 'folded';
             }
-            if (kind === 'history' && config.historyJson === true) {
+            if (kind === 'history' && cmdOptions.asJson === undefined && config.historyJson === true) {
                 cmdOptions.asJson = true;
             }
 

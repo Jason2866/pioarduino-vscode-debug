@@ -284,7 +284,7 @@ export class GDBDebugSession extends DebugSession {
                 monitorCmd = 'esp riscv_trace';
                 break;
             case 'trace-status':
-                monitorCmd = 'esp riscv_trace status';
+                monitorCmd = 'esp riscv_trace info';
                 break;
             case 'trace-start': {
                 if (!args || !args.file) {
