@@ -128,4 +128,18 @@ describe('trace_webview', () => {
             expect.objectContaining({ type: 'instructionsPage', coreId: 0, totalMatched: 4 })
         );
     });
+
+    test('filterAndPaginateEvents jumps to core.origin.fault rather than an earlier non-fault trap', () => {
+        const core = makeCore(6);
+        const faultTrap = { event: 'trap', cause: 5, epc: 0x42000100, interrupt: false };
+        core.events = [
+            { event: 'trap', cause: 11, epc: 0x42000010, interrupt: false } as any,
+            ...core.events.slice(0, 4),
+            faultTrap as any,
+        ];
+        (core.origin as any).fault = faultTrap;
+
+        const jumped = filterAndPaginateEvents(core, { page: 0, pageSize: 3, jumpToFault: true });
+        expect(jumped.page).toBe(1);
+    });
 });

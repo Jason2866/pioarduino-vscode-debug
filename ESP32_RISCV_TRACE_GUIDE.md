@@ -36,7 +36,7 @@ From a capture, the extension reconstructs the executed RISC-V instruction strea
 ### Requirements
 - **Firmware ELF** built with debug symbols (`-g`) and `CONFIG_ESP_RISCV_TRACE_ENABLE` enabled in `sdkconfig` for trace-enabled firmware / core dumps.
 - **RISC-V Toolchain** (`riscv32-esp-elf-addr2line` and/or `riscv32-esp-elf-gdb`) for resolving program counters to `file:line` source locations. These are auto-detected from your PlatformIO/pioarduino packages directory.
-- **Live Capture (optional):** Requires an `openocd-esp32` build compiled with `CONFIG_ESP_RISCV_TRACE_OPENOCD`. If your installed OpenOCD does not yet include `esp riscv_trace`, you can still decode existing `.esptrace` files and trace-enabled core-dump ELFs.
+- **Live Capture (optional):** Requires firmware built with `CONFIG_ESP_RISCV_TRACE_OPENOCD` enabled and `CONFIG_ESP_RISCV_TRACE_AUTOSTART` disabled, plus an `openocd-esp32` build that includes the `esp riscv_trace` command. If your installed OpenOCD does not yet include `esp riscv_trace`, you can still decode existing `.esptrace` files and trace-enabled core-dump ELFs.
 
 ---
 
@@ -84,7 +84,7 @@ When an active `platformio-debug` session is running:
 2. Run **Trace: Start Capture** and choose a destination `.esptrace` file (defaults to `.pio/debug-trace/`).
 3. Run or reproduce the issue on your target, then run **Trace: Stop Capture**.
 4. Run **Trace: Dump Capture** to flush the trace buffer to disk.
-5. If `platformio-debug.trace.autoDecodeOnStop` is enabled, the capture decodes automatically on dump, halt, or session termination.
+5. If `platformio-debug.trace.autoDecodeOnStop` is enabled, the extension automatically decodes the last saved capture file on dump, halt, or session termination. Note that terminating a debug session does **not** trigger a dump—always stop or dump the capture before ending the session so the file exists on disk.
 
 ---
 
@@ -121,4 +121,4 @@ All settings live under `platformio-debug.trace.*` in VS Code Settings:
 - **Missing source file/line columns:** Run **Trace: Resolve Context** and check the `PlatformIO Debug Trace` output channel to confirm `addr2linePath` (or `gdbPath` fallback) and `elfPath` were found.
 - **"ELF SHA mismatch" warning:** The capture was recorded from a different firmware build than the ELF currently selected. Point `platformio-debug.trace.elfPath` to the exact ELF flashed to the device.
 - **Clicking a source link says "Source file not found":** Source paths are resolved against your workspace root, ELF directory, PlatformIO framework packages (`framework-espidf`, `framework-arduinoespressif32`), and `IDF_PATH`. Ensure the matching project/framework sources exist locally.
-- **OpenOCD does not recognize `esp riscv_trace`:** Your installed `tool-openocd-esp32` does not have `CONFIG_ESP_RISCV_TRACE_OPENOCD` compiled in. Upgrade `tool-openocd-esp32` when available, or use coredump ELFs / `.esptrace` files for offline decoding.
+- **OpenOCD does not recognize `esp riscv_trace`:** Your installed `tool-openocd-esp32` does not include the `esp riscv_trace` command. Upgrade `tool-openocd-esp32` when available (and ensure your firmware has `CONFIG_ESP_RISCV_TRACE_OPENOCD` enabled and `CONFIG_ESP_RISCV_TRACE_AUTOSTART` disabled), or use coredump ELFs / `.esptrace` files for offline decoding.

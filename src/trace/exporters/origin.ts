@@ -19,6 +19,7 @@ function fmtLocation(file: string, line: number): string {
 export interface FormatOriginOptions {
     label?: string;
     registers?: ReadonlyMap<number, number>;
+    registerNote?: string;
     inside?: (pc: number) => boolean;
 }
 
@@ -123,7 +124,7 @@ export function formatFaultOrigin(
     if (options.registers && options.registers.size > 0) {
         const root = window.origin(options.registers);
         lines.push('');
-        lines.push('register origin:');
+        lines.push(options.registerNote ? `register origin (${options.registerNote}):` : 'register origin:');
         if (root === undefined) {
             lines.push('  (no register to follow)');
         } else {

@@ -68,6 +68,8 @@ export interface CommandOptions {
     mergeProfiles?: boolean;
     /** origin */
     registers?: ReadonlyMap<number, number>;
+    registersByCore?: ReadonlyMap<number, ReadonlyMap<number, number>>;
+    registerNote?: string;
     /** Suppress the one-line summary the CLI prints to stderr. */
     quiet?: boolean;
     warn?: (message: string) => void;
@@ -500,11 +502,13 @@ export async function originCapture(capturePath: string, options: CommandOptions
             builder.push(ev);
         }
         const win = builder.close();
+        const coreRegs = options.registersByCore?.get(p.view.core.core_id) ?? options.registers;
         writeHeader(lines, p.view, 'origin', i === 0, false);
         lines.push(
             ...formatFaultOrigin(win, p.view.session.image, p.resolver, {
                 label: `core=${p.view.core.core_id}`,
-                registers: options.registers,
+                registers: coreRegs,
+                registerNote: options.registerNote,
             })
         );
         lines.push(...formatDiagnostic(p.diag));

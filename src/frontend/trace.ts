@@ -33,6 +33,7 @@ export class TraceFrontend {
     private outputChannel: vscode.OutputChannel | undefined;
     private lastCaptureFile: string | undefined;
     private lastResolvedContext: TraceContext | undefined;
+    private inspectorGeneration = 0;
 
     register(context: vscode.ExtensionContext): vscode.Disposable[] {
         this.outputChannel = vscode.window.createOutputChannel('PlatformIO Debug Trace');
@@ -165,30 +166,27 @@ export class TraceFrontend {
                         `head_valid=${view.core.head_valid} buffers=${buffers.length}`
                 );
             }
-            const cached = this.treeProvider.getCapture();
-            if (!cached || cached.capturePath !== uri.fsPath) {
-                try {
-                    const config = this.getTraceConfig();
-                    const core =
-                        typeof config.core === 'number' && Number.isInteger(config.core) && config.core >= 0
-                            ? config.core
-                            : undefined;
-                    const analysis = await analyzeCapture(uri.fsPath, {
-                        elfPath: options.elfPath,
-                        addr2linePath: options.addr2linePath,
-                        gdbPath: options.gdbPath,
-                        core,
-                        chip: options.chip,
-                        romElfPath: options.romElfPath,
-                        romElfPathHint: options.romElfPathHint,
-                        warn: (message) => channel.appendLine(`Warning: ${message}`),
-                    });
-                    if (analysis) {
-                        this.treeProvider.setCapture(analysis);
-                    }
-                } catch {
-                    // Keep openSession inspection working even if full analysis requires an ELF.
+            try {
+                const config = this.getTraceConfig();
+                const core =
+                    typeof config.core === 'number' && Number.isInteger(config.core) && config.core >= 0
+                        ? config.core
+                        : undefined;
+                const analysis = await analyzeCapture(uri.fsPath, {
+                    elfPath: options.elfPath,
+                    addr2linePath: options.addr2linePath,
+                    gdbPath: options.gdbPath,
+                    core,
+                    chip: options.chip,
+                    romElfPath: options.romElfPath,
+                    romElfPathHint: options.romElfPathHint,
+                    warn: (message) => channel.appendLine(`Warning: ${message}`),
+                });
+                if (analysis) {
+                    this.treeProvider.setCapture(analysis);
                 }
+            } catch {
+                // Keep openSession inspection working even if full analysis requires an ELF.
             }
             channel.show(true);
             vscode.window.showInformationMessage(
@@ -432,8 +430,23 @@ export class TraceFrontend {
     }
 
     private async originCaptureCmd(): Promise<void> {
-        const registers = await this.readActiveSessionRegisters();
-        await this.runTraceAnalysis('origin', { registers }, true);
+        if (!this.ensureEnabled()) {
+            return;
+        }
+        const file = await this.openCaptureFile('Select trace capture to origin');
+        if (!file) {
+            return;
+        }
+        const regInfo = await this.readActiveSessionRegisters(file);
+        await this.runTraceAnalysisForFile(
+            'origin',
+            file,
+            {
+                registersByCore: regInfo?.registersByCore,
+                registerNote: regInfo && !regInfo.verified ? 'unverified - sourced from active debug session' : undefined,
+            },
+            true
+        );
     }
 
     private async runTraceAnalysis(
@@ -527,6 +540,7 @@ export class TraceFrontend {
     }
 
     private clearCapture(): void {
+        this.inspectorGeneration++;
         this.treeProvider.clear();
         this.webviewPanel.dispose();
     }
@@ -539,15 +553,19 @@ export class TraceFrontend {
         if (!this.ensureEnabled()) {
             return;
         }
+        const gen = ++this.inspectorGeneration;
         const channel = this.requireOutputChannel();
         let analysis: TraceCaptureAnalysis | undefined = forcePick ? undefined : this.treeProvider.getCapture();
         if (!analysis) {
             const file = await this.openCaptureFile('Select trace capture to inspect');
-            if (!file) {
+            if (!file || gen !== this.inspectorGeneration) {
                 return;
             }
             try {
                 const options = await this.resolveToolchainOptions(channel);
+                if (gen !== this.inspectorGeneration) {
+                    return;
+                }
                 const config = this.getTraceConfig();
                 const core =
                     typeof config.core === 'number' && Number.isInteger(config.core) && config.core >= 0
@@ -563,6 +581,9 @@ export class TraceFrontend {
                     romElfPathHint: options.romElfPathHint,
                     warn: (message) => channel.appendLine(`Warning: ${message}`),
                 });
+                if (gen !== this.inspectorGeneration) {
+                    return;
+                }
                 this.treeProvider.setCapture(analysis);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -574,7 +595,13 @@ export class TraceFrontend {
         }
 
         const capturePath = analysis.capturePath;
-        const registers = await this.readActiveSessionRegisters();
+        const regInfo = await this.readActiveSessionRegisters(capturePath, analysis.cores.map((c) => c.coreId));
+        if (gen !== this.inspectorGeneration) {
+            return;
+        }
+        const registerNote = regInfo && !regInfo.verified ? 'unverified - sourced from active debug session' : undefined;
+        const loadedElfPath = analysis.elfPath;
+        const loadedRomElfPath = analysis.romElfPath;
         this.webviewPanel.show(
             analysis,
             {
@@ -582,17 +609,30 @@ export class TraceFrontend {
                     void this.openLocation({ file, line, elfPath });
                 },
                 onExport: (kind: TraceExportKind, coreId: number, saveToFile?: boolean) => {
+                    const baseExtra: Partial<CommandOptions> = {
+                        core: coreId,
+                        elfPath: loadedElfPath,
+                        romElfPath: loadedRomElfPath,
+                    };
                     const mapKind: Record<
                         TraceExportKind,
                         { cmd: 'decode' | 'stats' | 'history' | 'profile' | 'origin'; extra: Partial<CommandOptions>; ext: string }
                     > = {
-                        decode: { cmd: 'decode', extra: { core: coreId }, ext: 'txt' },
-                        stats: { cmd: 'stats', extra: { core: coreId }, ext: 'txt' },
-                        historyText: { cmd: 'history', extra: { core: coreId, asJson: false }, ext: 'txt' },
-                        historyJson: { cmd: 'history', extra: { core: coreId, asJson: true }, ext: 'json' },
-                        folded: { cmd: 'profile', extra: { core: coreId, profileFormat: 'folded' }, ext: 'folded' },
-                        speedscope: { cmd: 'profile', extra: { core: coreId, profileFormat: 'speedscope' }, ext: 'speedscope.json' },
-                        origin: { cmd: 'origin', extra: { core: coreId, registers }, ext: 'txt' },
+                        decode: { cmd: 'decode', extra: baseExtra, ext: 'txt' },
+                        stats: { cmd: 'stats', extra: baseExtra, ext: 'txt' },
+                        historyText: { cmd: 'history', extra: { ...baseExtra, asJson: false }, ext: 'txt' },
+                        historyJson: { cmd: 'history', extra: { ...baseExtra, asJson: true }, ext: 'json' },
+                        folded: { cmd: 'profile', extra: { ...baseExtra, profileFormat: 'folded' }, ext: 'folded' },
+                        speedscope: { cmd: 'profile', extra: { ...baseExtra, profileFormat: 'speedscope' }, ext: 'speedscope.json' },
+                        origin: {
+                            cmd: 'origin',
+                            extra: {
+                                ...baseExtra,
+                                registersByCore: regInfo?.registersByCore,
+                                registerNote,
+                            },
+                            ext: 'txt',
+                        },
                     };
                     const entry = mapKind[kind];
                     if (!entry) {
@@ -605,7 +645,8 @@ export class TraceFrontend {
                     }
                 },
             },
-            registers
+            regInfo?.registersByCore,
+            registerNote
         );
     }
 
@@ -658,7 +699,10 @@ export class TraceFrontend {
         }
     }
 
-    private async readActiveSessionRegisters(): Promise<Map<number, number> | undefined> {
+    private async readActiveSessionRegisters(
+        capturePath?: string,
+        knownCoreIds?: readonly number[]
+    ): Promise<{ registersByCore: Map<number, Map<number, number>>; verified: boolean } | undefined> {
         const session = vscode.debug.activeDebugSession;
         if (!session || session.type !== 'platformio-debug') {
             return undefined;
@@ -671,38 +715,61 @@ export class TraceFrontend {
             t3: 28, t4: 29, t5: 30, t6: 31,
         };
         try {
-            const threads = await session.customRequest('threads');
-            const threadId = threads?.threads?.[0]?.id;
-            if (typeof threadId !== 'number') {
+            const threadsResp = await session.customRequest('threads');
+            const threads: Array<{ id: number; name?: string }> = threadsResp?.threads ?? [];
+            if (threads.length === 0) {
                 return undefined;
             }
-            const stack = await session.customRequest('stackTrace', { threadId, startFrame: 0, levels: 1 });
-            const frameId = stack?.stackFrames?.[0]?.id;
-            if (typeof frameId !== 'number') {
-                return undefined;
-            }
-            const scopes = await session.customRequest('scopes', { frameId });
-            const regScope = (scopes?.scopes ?? []).find((s: any) => /register/i.test(String(s.name)));
-            if (!regScope?.variablesReference) {
-                return undefined;
-            }
-            const vars = await session.customRequest('variables', { variablesReference: regScope.variablesReference });
-            const regs = new Map<number, number>();
-            for (const v of vars?.variables ?? []) {
-                const name = String(v.name ?? '').trim().toLowerCase();
-                let idx = abiNames[name];
-                if (idx === undefined && /^x(\d+)$/.test(name)) {
-                    idx = parseInt(name.slice(1), 10);
-                }
-                if (idx === undefined || idx < 0 || idx > 31) {
+            const registersByCore = new Map<number, Map<number, number>>();
+            for (const thread of threads) {
+                if (typeof thread?.id !== 'number') {
                     continue;
                 }
-                const val = Number(v.value);
-                if (Number.isFinite(val)) {
-                    regs.set(idx, val >>> 0);
+                const match = /(?:cpu|core)\s*#?(\d+)/i.exec(String(thread.name ?? ''));
+                let coreId: number | undefined = match ? parseInt(match[1], 10) : undefined;
+                if (coreId === undefined && threads.length === 1) {
+                    if (!knownCoreIds || knownCoreIds.length === 1) {
+                        coreId = knownCoreIds?.[0] ?? 0;
+                    }
+                }
+                if (coreId === undefined) {
+                    continue;
+                }
+                const stack = await session.customRequest('stackTrace', { threadId: thread.id, startFrame: 0, levels: 1 });
+                const frameId = stack?.stackFrames?.[0]?.id;
+                if (typeof frameId !== 'number') {
+                    continue;
+                }
+                const scopes = await session.customRequest('scopes', { frameId });
+                const regScope = (scopes?.scopes ?? []).find((s: any) => /register/i.test(String(s.name)));
+                if (!regScope?.variablesReference) {
+                    continue;
+                }
+                const vars = await session.customRequest('variables', { variablesReference: regScope.variablesReference });
+                const regs = new Map<number, number>();
+                for (const v of vars?.variables ?? []) {
+                    const name = String(v.name ?? '').trim().toLowerCase();
+                    let idx = abiNames[name];
+                    if (idx === undefined && /^x(\d+)$/.test(name)) {
+                        idx = parseInt(name.slice(1), 10);
+                    }
+                    if (idx === undefined || idx < 0 || idx > 31) {
+                        continue;
+                    }
+                    const val = Number(v.value);
+                    if (Number.isFinite(val)) {
+                        regs.set(idx, val >>> 0);
+                    }
+                }
+                if (regs.size > 0) {
+                    registersByCore.set(coreId, regs);
                 }
             }
-            return regs.size > 0 ? regs : undefined;
+            if (registersByCore.size === 0) {
+                return undefined;
+            }
+            const verified = Boolean(capturePath && this.lastCaptureFile && capturePath === this.lastCaptureFile);
+            return { registersByCore, verified };
         } catch {
             return undefined;
         }

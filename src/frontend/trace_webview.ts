@@ -166,7 +166,8 @@ export class TraceWebviewPanel {
     show(
         analysis: TraceCaptureAnalysis,
         callbacks: TraceWebviewCallbacks,
-        registers?: ReadonlyMap<number, number>
+        registersByCore?: ReadonlyMap<number, ReadonlyMap<number, number>>,
+        registerNote?: string
     ): void {
         this.analysis = analysis;
         this.callbacks = callbacks;
@@ -188,7 +189,7 @@ export class TraceWebviewPanel {
             this.panel.webview.onDidReceiveMessage((msg) => this.handleMessage(msg));
         }
 
-        this.panel.webview.html = this.buildHtml(analysis, registers);
+        this.panel.webview.html = this.buildHtml(analysis, registersByCore, registerNote);
     }
 
     dispose(): void {
@@ -240,7 +241,11 @@ export class TraceWebviewPanel {
         };
     }
 
-    private buildCorePayload(core: TraceCoreAnalysis, registers?: ReadonlyMap<number, number>) {
+    private buildCorePayload(
+        core: TraceCoreAnalysis,
+        registers?: ReadonlyMap<number, number>,
+        registerNote?: string
+    ) {
         const total = core.stats.total_instructions || 1;
         const stats = [...core.stats.sample_hits.entries()]
             .sort((a, b) => b[1] - a[1])
@@ -315,6 +320,7 @@ export class TraceWebviewPanel {
                     };
                 }),
             registerRoot: originRoot ? this.serializeStep(originRoot, core) : undefined,
+            registerNote,
         };
 
         return {
@@ -333,7 +339,11 @@ export class TraceWebviewPanel {
         };
     }
 
-    private buildHtml(analysis: TraceCaptureAnalysis, registers?: ReadonlyMap<number, number>): string {
+    private buildHtml(
+        analysis: TraceCaptureAnalysis,
+        registersByCore?: ReadonlyMap<number, ReadonlyMap<number, number>>,
+        registerNote?: string
+    ): string {
         const nonce = crypto.randomBytes(16).toString('hex');
         const payload = {
             capturePath: analysis.capturePath,
@@ -341,7 +351,7 @@ export class TraceWebviewPanel {
             chip: analysis.chip,
             elfPath: analysis.elfPath ?? '(none)',
             romElfPath: analysis.romElfPath ?? '(none)',
-            cores: analysis.cores.map((c) => this.buildCorePayload(c, registers)),
+            cores: analysis.cores.map((c) => this.buildCorePayload(c, registersByCore?.get(c.coreId), registerNote)),
         };
         const safeJson = JSON.stringify(payload).replace(/</g, '\\u003c');
 
@@ -512,7 +522,8 @@ function renderOrigin(c) {
   }
   const calls = o.calls.map(x => '<li>' + esc(x.sym) + ' (' + esc(x.pcText) + ') ' + linkHtml(x.file, x.line) + '</li>').join('');
   const branches = o.branches.map(b => '<li>' + esc(b.pcText) + ' ' + (b.taken ? 'taken' : 'not taken') + ' ' + linkHtml(b.file, b.line) + '</li>').join('');
-  const regHtml = o.registerRoot ? '<h3>Register Provenance</h3><ul>' + renderStepHtml(o.registerRoot) + '</ul>' : '';
+  const regTitle = o.registerNote ? 'Register Provenance (' + esc(o.registerNote) + ')' : 'Register Provenance';
+  const regHtml = o.registerRoot ? '<h3>' + regTitle + '</h3><ul>' + renderStepHtml(o.registerRoot) + '</ul>' : '';
   document.getElementById('originBody').innerHTML =
     '<p><b>Fault:</b> cause=' + o.cause + ' epc=' + esc(o.epcText) + ' ' + esc(o.faultSym || '') + ' ' + linkHtml(o.faultFile, o.faultLine) + ' tval=' + esc(o.tvalText) + ' complete=' + o.windowComplete + '</p>' +
     '<h3>Unreturned Calls (' + o.calls.length + ')</h3><ul>' + (calls || '<li>(none)</li>') + '</ul>' +
