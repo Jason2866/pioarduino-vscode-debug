@@ -584,9 +584,15 @@ export async function resolveTraceContext(
     let idfToolsDir: string | undefined;
 
     const useIdfFallback = !sections || (!elfPath && !candidate);
-    if (useIdfFallback && isEspIdfWorkspace(workspaceFolder, buildDir)) {
+    const hasConfiguredPioBuildDir = Boolean(
+        options.buildDir ||
+        sections?.['platformio']?.['build_dir'] ||
+        sections?.['platformio']?.['workspace_dir']
+    );
+    const idfBuildDir = hasConfiguredPioBuildDir ? buildDir : undefined;
+    if (useIdfFallback && isEspIdfWorkspace(workspaceFolder, idfBuildDir)) {
         const idfCtx = resolveEspIdfContext(workspaceFolder, {
-            buildDir,
+            buildDir: idfBuildDir,
             elfPath,
             chip,
         });

@@ -146,6 +146,7 @@ export class TraceFrontend {
         if (!uri) {
             return;
         }
+        const gen = ++this.inspectorGeneration;
         channel.appendLine(`Inspecting trace capture: ${uri.fsPath}`);
         try {
             const options = await this.resolveToolchainOptions(channel);
@@ -182,7 +183,7 @@ export class TraceFrontend {
                     romElfPathHint: options.romElfPathHint,
                     warn: (message) => channel.appendLine(`Warning: ${message}`),
                 });
-                if (analysis) {
+                if (analysis && gen === this.inspectorGeneration) {
                     this.treeProvider.setCapture(analysis);
                 }
             } catch {

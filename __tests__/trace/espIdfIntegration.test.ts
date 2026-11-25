@@ -125,4 +125,53 @@ describe('espIdfIntegration', () => {
         expect(direct.elfPath).toBe(elfPath);
         expect(direct.chip).toBe('esp32c5');
     });
+
+    test('does not adopt workspace chip when an external ELF is provided', async () => {
+        const root = makeTempDir();
+        temps.push(root);
+        const buildDir = path.join(root, 'build');
+        fs.mkdirSync(buildDir, { recursive: true });
+        fs.writeFileSync(path.join(buildDir, 'app.elf'), makeElf32Riscv());
+        fs.writeFileSync(
+            path.join(buildDir, 'project_description.json'),
+            JSON.stringify({ project_name: 'app', app_elf: 'app.elf', target: 'esp32c5' })
+        );
+        const externalElf = path.join(root, 'esp32c6.elf');
+        fs.writeFileSync(externalElf, makeElf32Riscv());
+
+        const ctx = await resolveTraceContext({
+            workspaceFolder: root,
+            elfPath: externalElf,
+            coreDir: path.join(root, 'empty-pio-core'),
+            packagesDir: path.join(root, 'empty-pio-packages'),
+        });
+
+        expect(ctx.elfPath).toBe(externalElf);
+        expect(ctx.chip).toBe('esp32c6');
+    });
+
+    test('uses native build/ when platformio.ini has no configured build_dir or PIO ELF', async () => {
+        const root = makeTempDir();
+        temps.push(root);
+        fs.writeFileSync(path.join(root, 'platformio.ini'), '[env:default]\nplatform = espressif32\n');
+        const buildDir = path.join(root, 'build');
+        fs.mkdirSync(buildDir, { recursive: true });
+        const elfPath = path.join(buildDir, 'idf_app.elf');
+        fs.writeFileSync(elfPath, makeElf32Riscv());
+        fs.writeFileSync(
+            path.join(buildDir, 'project_description.json'),
+            JSON.stringify({ project_name: 'idf_app', app_elf: 'idf_app.elf', target: 'esp32c6' })
+        );
+
+        const ctx = await resolveTraceContext({
+            workspaceFolder: root,
+            usePlatformIOConfig: false,
+            coreDir: path.join(root, 'empty-pio-core'),
+            packagesDir: path.join(root, 'empty-pio-packages'),
+        });
+
+        expect(ctx.elfPath).toBe(elfPath);
+        expect(ctx.chip).toBe('esp32c6');
+        expect(ctx.buildDir).toBe(buildDir);
+    });
 });

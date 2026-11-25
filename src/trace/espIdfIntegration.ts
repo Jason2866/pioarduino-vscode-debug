@@ -268,8 +268,12 @@ export function resolveEspIdfContext(
 ): EspIdfResolvedContext {
     const buildDir = options.buildDir ?? path.join(workspaceFolder, 'build');
     const desc = readIdfProjectDescription(buildDir);
-    const elfPath = options.elfPath ?? findIdfElfPath(buildDir);
-    const chip = options.chip ?? desc?.target ?? readIdfSdkconfigTarget(workspaceFolder);
+    const projectElfPath = findIdfElfPath(buildDir);
+    const elfPath = options.elfPath ?? projectElfPath;
+    const matchesProjectElf =
+        !options.elfPath ||
+        (projectElfPath !== undefined && path.resolve(options.elfPath) === path.resolve(projectElfPath));
+    const chip = options.chip ?? (matchesProjectElf ? (desc?.target ?? readIdfSdkconfigTarget(workspaceFolder)) : undefined);
     const idfPath = options.idfPath ?? desc?.idfPath ?? (env.IDF_PATH?.trim() || undefined);
     const toolsDir = options.toolsDir ?? getIdfToolsDir(env);
 
