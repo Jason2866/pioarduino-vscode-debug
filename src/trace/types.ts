@@ -8,6 +8,7 @@ export interface TraceContext {
     packagesDir?: string;
     coreDir?: string;
     buildDir?: string;
+    idfPath?: string;
     gdbPath?: string;
     addr2linePath?: string;
     openocdPath?: string;

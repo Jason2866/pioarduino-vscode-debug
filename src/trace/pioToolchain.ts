@@ -9,6 +9,15 @@ import {
     ChipArch,
 } from './chip';
 import { ResolveTraceContextOptions, TraceContext, TraceTargetArch } from './types';
+import {
+    findIdfAddr2linePath,
+    findIdfGdbPath,
+    findIdfOpenOcdPath,
+    findIdfRomElfPath,
+    getIdfToolsDir,
+    isEspIdfWorkspace,
+    resolveEspIdfContext,
+} from './espIdfIntegration';
 import * as ini from './platformioIni';
 
 export interface PioElfCandidate {
@@ -568,7 +577,26 @@ export async function resolveTraceContext(
     const resolvedElf = requestedElf ? resolvePathFromWorkspace(workspaceFolder, requestedElf) : undefined;
     const candidate = selectPioCandidate(candidates, options, resolvedElf, buildDir);
 
-    const elfPath = resolvedElf ?? candidate?.elfPath;
+    let effectiveBuildDir = buildDir;
+    let elfPath = resolvedElf ?? candidate?.elfPath;
+    let chip = options.chip;
+    let idfPath: string | undefined = process.env.IDF_PATH?.trim() || undefined;
+    let idfToolsDir: string | undefined;
+
+    const useIdfFallback = !sections || (!elfPath && !candidate);
+    if (useIdfFallback && isEspIdfWorkspace(workspaceFolder, buildDir)) {
+        const idfCtx = resolveEspIdfContext(workspaceFolder, {
+            buildDir,
+            elfPath,
+            chip,
+        });
+        effectiveBuildDir = idfCtx.buildDir;
+        elfPath = elfPath ?? idfCtx.elfPath;
+        chip = chip ?? idfCtx.chip;
+        idfPath = idfCtx.idfPath ?? idfPath;
+        idfToolsDir = idfCtx.toolsDir;
+    }
+
     if (requestedElf && resolvedElf && !fs.existsSync(resolvedElf)) {
         warnings.push(`ELF path does not exist: ${resolvedElf}`);
     }
@@ -579,13 +607,12 @@ export async function resolveTraceContext(
     // options.chip wins. Otherwise the chip must describe the ELF actually
     // used: an explicit ELF may belong to a different env than the selected
     // candidate, so match candidates by path regardless of requested env.
-    let chip = options.chip;
     if (chip === undefined && elfPath) {
         const elfCandidate = candidates.find((c) => pathsEqual(c.elfPath, elfPath));
         chip = elfCandidate?.chip;
         if (chip === undefined) {
             const envName =
-                envNameFromElfPath(buildDir, elfPath) ??
+                envNameFromElfPath(effectiveBuildDir, elfPath) ??
                 path.basename(elfPath, path.extname(elfPath));
             chip = getChipName(envName, workspaceFolder, coreDir);
         }
@@ -611,7 +638,8 @@ export async function resolveTraceContext(
         targetArch,
         packagesDir,
         coreDir,
-        buildDir,
+        buildDir: effectiveBuildDir,
+        idfPath,
         warnings,
     };
 
@@ -619,25 +647,30 @@ export async function resolveTraceContext(
         return context;
     }
 
+    const toolsDir = idfToolsDir ?? getIdfToolsDir();
     const toolArch: ChipArch = 'riscv';
     context.gdbPath = options.gdbPath
         ?? (packagesDir ? findPioGdbToolPath(packagesDir, toolArch, chip) : undefined)
+        ?? findIdfGdbPath(toolsDir, toolArch)
         ?? whereIsProgram('riscv32-esp-elf-gdb');
     context.addr2linePath = options.addr2linePath
-        ?? findPioAddr2linePath(packagesDir, toolArch, context.gdbPath);
+        ?? findPioAddr2linePath(packagesDir, toolArch, context.gdbPath)
+        ?? findIdfAddr2linePath(toolsDir, toolArch);
     context.openocdPath = options.openocdPath
-        ?? findPioOpenOcdPath(packagesDir);
+        ?? findPioOpenOcdPath(packagesDir)
+        ?? findIdfOpenOcdPath(toolsDir);
     context.romElfPath = options.romElfPath
-        ?? (packagesDir && chip ? findRomElf(packagesDir, chip) : undefined);
+        ?? (packagesDir && chip ? findRomElf(packagesDir, chip) : undefined)
+        ?? (chip ? findIdfRomElfPath(toolsDir, chip) : undefined);
 
     if (!context.gdbPath) {
-        warnings.push('RISC-V GDB was not found in PlatformIO packages or PATH.');
+        warnings.push('RISC-V GDB was not found in PlatformIO/ESP-IDF tools or PATH.');
     }
     if (!context.addr2linePath) {
         warnings.push('addr2line was not found in the RISC-V toolchain.');
     }
     if (!context.openocdPath) {
-        warnings.push('OpenOCD was not found in PlatformIO packages or PATH.');
+        warnings.push('OpenOCD was not found in PlatformIO/ESP-IDF tools or PATH.');
     }
     if (chip && !context.romElfPath) {
         warnings.push(`ROM ELF for chip '${chip}' was not found.`);

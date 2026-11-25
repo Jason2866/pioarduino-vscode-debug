@@ -728,6 +728,9 @@ export class TraceFrontend {
                 path.join(pkgDir, 'framework-arduinoespressif32')
             );
         }
+        if (this.lastResolvedContext?.idfPath) {
+            roots.push(this.lastResolvedContext.idfPath);
+        }
         if (process.env.IDF_PATH) {
             roots.push(process.env.IDF_PATH);
         }
