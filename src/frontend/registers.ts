@@ -51,6 +51,96 @@ export class BaseNode {
 /** Base for register tree nodes. */
 }
 
+type RegisterFieldSpec = readonly [name: string, offset: number, size: number];
+
+const ARM_PSR_FIELDS: readonly RegisterFieldSpec[] = [
+    ['Negative Flag (N)', 31, 1],
+    ['Zero Flag (Z)', 30, 1],
+    ['Carry or borrow flag (C)', 29, 1],
+    ['Overflow Flag (V)', 28, 1],
+    ['Saturation Flag (Q)', 27, 1],
+    ['GE', 16, 4],
+    ['Interrupt Number', 0, 8],
+    ['ICI/IT', 25, 2],
+    ['ICI/IT', 10, 6],
+    ['Thumb State (T)', 24, 1],
+];
+
+const REGISTER_FIELDS: Readonly<Record<string, readonly RegisterFieldSpec[]>> = {
+    XPSR: ARM_PSR_FIELDS,
+    CPSR: ARM_PSR_FIELDS,
+    CONTROL: [
+        ['FPCA', 2, 1],
+        ['SPSEL', 1, 1],
+        ['nPRIV', 0, 1],
+    ],
+    MSTATUS: [
+        ['SD', 31, 1],
+        ['TSR', 22, 1],
+        ['TW', 21, 1],
+        ['TVM', 20, 1],
+        ['MXR', 19, 1],
+        ['SUM', 18, 1],
+        ['MPRV', 17, 1],
+        ['XS', 15, 2],
+        ['FS', 13, 2],
+        ['MPP', 11, 2],
+        ['VS', 9, 2],
+        ['SPP', 8, 1],
+        ['MPIE', 7, 1],
+        ['SPIE', 5, 1],
+        ['MIE', 3, 1],
+        ['SIE', 1, 1],
+    ],
+    MCAUSE: [
+        ['Interrupt', 31, 1],
+        ['Exception Code', 0, 31],
+    ],
+    MISA: [
+        ['MXL', 30, 2],
+        ['Extensions', 0, 26],
+    ],
+    MTVEC: [
+        ['BASE', 2, 30],
+        ['MODE', 0, 2],
+    ],
+    MIE: [
+        ['MEIE', 11, 1],
+        ['SEIE', 9, 1],
+        ['MTIE', 7, 1],
+        ['STIE', 5, 1],
+        ['MSIE', 3, 1],
+        ['SSIE', 1, 1],
+    ],
+    MIP: [
+        ['MEIP', 11, 1],
+        ['SEIP', 9, 1],
+        ['MTIP', 7, 1],
+        ['STIP', 5, 1],
+        ['MSIP', 3, 1],
+        ['SSIP', 1, 1],
+    ],
+    VTYPE: [
+        ['vill', 31, 1],
+        ['vma', 7, 1],
+        ['vta', 6, 1],
+        ['vsew', 3, 3],
+        ['vlmul', 0, 3],
+    ],
+    VCSR: [
+        ['vxrm', 1, 2],
+        ['vxsat', 0, 1],
+    ],
+    FCSR: [
+        ['frm', 5, 3],
+        ['NV', 4, 1],
+        ['DZ', 3, 1],
+        ['OF', 2, 1],
+        ['UF', 1, 1],
+        ['NX', 0, 1],
+    ],
+};
+
 /** CPU register node; may have FieldNode children. */
 export class RegisterNode extends BaseNode {
     public name: string;
@@ -63,25 +153,11 @@ export class RegisterNode extends BaseNode {
         this.name = name;
         this.index = index;
 
-        if (name.toUpperCase() === 'XPSR' || name.toUpperCase() === 'CPSR') {
-            this.fields = [
-                new FieldNode('Negative Flag (N)', 31, 1, this),
-                new FieldNode('Zero Flag (Z)', 30, 1, this),
-                new FieldNode('Carry or borrow flag (C)', 29, 1, this),
-                new FieldNode('Overflow Flag (V)', 28, 1, this),
-                new FieldNode('Saturation Flag (Q)', 27, 1, this),
-                new FieldNode('GE', 16, 4, this),
-                new FieldNode('Interrupt Number', 0, 8, this),
-                new FieldNode('ICI/IT', 25, 2, this),
-                new FieldNode('ICI/IT', 10, 6, this),
-                new FieldNode('Thumb State (T)', 24, 1, this),
-            ];
-        } else if (name.toUpperCase() === 'CONTROL') {
-            this.fields = [
-                new FieldNode('FPCA', 2, 1, this),
-                new FieldNode('SPSEL', 1, 1, this),
-                new FieldNode('nPRIV', 0, 1, this),
-            ];
+        const fieldSpecs = REGISTER_FIELDS[name.toUpperCase()];
+        if (fieldSpecs) {
+            this.fields = fieldSpecs.map(
+                ([fieldName, offset, size]) => new FieldNode(fieldName, offset, size, this)
+            );
         }
 
         this.currentValue = 0;

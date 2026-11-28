@@ -49,6 +49,37 @@ describe('register node classes', () => {
             expect(reg.fields.map((f) => f.name)).toEqual(['FPCA', 'SPSEL', 'nPRIV']);
         });
 
+        test.each([
+            ['mstatus', ['SD', 'TSR', 'TW', 'TVM', 'MXR', 'SUM', 'MPRV', 'XS', 'FS', 'MPP', 'VS', 'SPP', 'MPIE', 'SPIE', 'MIE', 'SIE']],
+            ['MSTATUS', ['SD', 'TSR', 'TW', 'TVM', 'MXR', 'SUM', 'MPRV', 'XS', 'FS', 'MPP', 'VS', 'SPP', 'MPIE', 'SPIE', 'MIE', 'SIE']],
+            ['mcause', ['Interrupt', 'Exception Code']],
+            ['misa', ['MXL', 'Extensions']],
+            ['mtvec', ['BASE', 'MODE']],
+            ['mie', ['MEIE', 'SEIE', 'MTIE', 'STIE', 'MSIE', 'SSIE']],
+            ['mip', ['MEIP', 'SEIP', 'MTIP', 'STIP', 'MSIP', 'SSIP']],
+            ['vtype', ['vill', 'vma', 'vta', 'vsew', 'vlmul']],
+            ['vcsr', ['vxrm', 'vxsat']],
+            ['fcsr', ['frm', 'NV', 'DZ', 'OF', 'UF', 'NX']],
+        ])('%s gets RISC-V CSR fields', (name, expectedFields) => {
+            const reg = new RegisterNode(name, 5);
+            expect(reg.fields.map((f) => f.name)).toEqual(expectedFields);
+            expect(reg.getTreeNode().collapsibleState).toBe(vscode.TreeItemCollapsibleState.Collapsed);
+        });
+
+        test('RISC-V CSR bit-field extraction works for vtype and mcause', () => {
+            const vtype = new RegisterNode('vtype', 6);
+            // vma=1 (bit 7), vta=0 (bit 6), vsew=0b010 (32-bit, bits 5:3), vlmul=0b001 (LMUL=2, bits 2:0)
+            vtype.setValue(0b10010001);
+            expect(vtype.fields.find((f) => f.name === 'vma')!.register.extractBits(7, 1)).toBe(1);
+            expect(vtype.fields.find((f) => f.name === 'vsew')!.register.extractBits(3, 3)).toBe(2);
+            expect(vtype.fields.find((f) => f.name === 'vlmul')!.register.extractBits(0, 3)).toBe(1);
+
+            const mcause = new RegisterNode('mcause', 7);
+            mcause.setValue(0x80000007); // Interrupt=1, Exception Code=7 (machine timer interrupt)
+            expect(mcause.extractBits(31, 1)).toBe(1);
+            expect(mcause.extractBits(0, 31)).toBe(7);
+        });
+
         test('getTreeNode formats the value per format', () => {
             const reg = new RegisterNode('R1', 1);
             reg.setValue(0x2a);
