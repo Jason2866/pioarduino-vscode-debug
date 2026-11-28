@@ -2,11 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.5] - 2026-11-28
+---
+
+## [1.2.1] - 2026-11-28
 
 ### Added
 
 - Register views now show bit-field details for additional RISC-V status, trap, interrupt, vector, and floating-point registers, making their individual values easier to inspect. Existing register fields continue to display as before.
+
+---
+
+## [1.2.0] - 2026-05-01
+
+### Added and refactored
+
+- Enhanced peripheral viewer with SVD file support
+- Improved memory editor with data visualization
+- Big integer support
+- RTOS thread awareness
+- Better error messages and diagnostics
 
 ---
 

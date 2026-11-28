@@ -133,10 +133,10 @@ describe('GitHub Actions Publish Workflow', () => {
       expect(steps[1].uses).toMatch(/actions\/setup-node@v/);
     });
 
-    test('Node.js should be configured with version 25.4.0', () => {
+    test('Node.js should be configured with version 24.15.0', () => {
       const steps = getSteps();
       expect(steps[1].with).toBeDefined();
-      expect(String(steps[1].with['node-version'])).toBe('25.4.0');
+      expect(String(steps[1].with['node-version'])).toBe('^24.15.0');
     });
 
     test('Node.js should be configured with npm registry', () => {
