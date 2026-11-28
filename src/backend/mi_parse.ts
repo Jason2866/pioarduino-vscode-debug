@@ -5,6 +5,8 @@ export class MINode {
     public token: number;
     public outOfBandRecord: any[];
     public resultRecords: any;
+    /** Console/target stream text captured while this command was in flight (monitor replies). */
+    public consoleOutput?: string;
 
     constructor(token: number, outOfBandRecord: any[], resultRecords: any) {
         this.token = token;

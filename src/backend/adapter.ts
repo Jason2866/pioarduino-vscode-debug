@@ -19,7 +19,7 @@ import { StoppedEvent, AdapterOutputEvent } from '../common';
 import { hexFormat, encodeDisassembly, parseQuery } from '../utils';
 import { VariableObject, MIError } from './mi2/types';
 import { expandValue } from './expand_value';
-import { MI2 } from './mi2/mi2';
+import { escape, MI2 } from './mi2/mi2';
 import { MINode } from './mi_parse';
 import { RTOSManager, RTOSThread, RTOSType } from './rtos';
 import { SymbolTable } from './symbols';
@@ -238,6 +238,14 @@ export class GDBDebugSession extends DebugSession {
                 this.disassembleRequest(response, args);
                 break;
 
+            case 'trace-probe':
+            case 'trace-status':
+            case 'trace-start':
+            case 'trace-stop':
+            case 'trace-dump':
+                this.traceCommandRequest(response, command, args);
+                break;
+
             case 'execute-command':
                 let cmd: string = args.command;
                 cmd = cmd.startsWith('-') ? cmd.substring(1) : `interpreter-exec console "${cmd}"`;
@@ -257,6 +265,71 @@ export class GDBDebugSession extends DebugSession {
                 response.body = { error: 'Invalid command.' };
                 this.sendResponse(response);
         }
+    }
+
+    /** Sends an `esp riscv_trace` OpenOCD command through the GDB monitor channel. */
+    private traceCommandRequest(response: any, command: string, args: any): void {
+        if (!this.miDebugger || !this.miDebugger.isReady()) {
+            this.sendErrorResponse(response, 111, 'No active debug session.');
+            return;
+        }
+
+        // The monitor string runs as a Jim Tcl script inside double quotes, so
+        // Tcl metacharacters in the path (\, ", $, [, ]) must be escaped too —
+        // e.g. a Windows path's `\t` would otherwise become a tab.
+        const quotePath = (p: string): string => `"${p.replace(/[\\"$[\]]/g, '\\$&')}"`;
+        let monitorCmd: string;
+        switch (command) {
+            case 'trace-probe':
+                monitorCmd = 'esp riscv_trace';
+                break;
+            case 'trace-status':
+                monitorCmd = 'esp riscv_trace info';
+                break;
+            case 'trace-start': {
+                if (!args || !args.file) {
+                    this.sendErrorResponse(response, 112, 'trace-start requires a file argument.');
+                    return;
+                }
+                const mode = args.mode === 'loop' ? 'loop' : 'loop';
+                const timeout =
+                    typeof args.timeoutMs === 'number' && Number.isFinite(args.timeoutMs) && args.timeoutMs > 0
+                        ? ` ${Math.floor(args.timeoutMs)}`
+                        : '';
+                monitorCmd = `esp riscv_trace start ${mode} ${quotePath(args.file)}${timeout}`;
+                break;
+            }
+            case 'trace-stop':
+                monitorCmd = 'esp riscv_trace stop';
+                break;
+            case 'trace-dump': {
+                if (!args || !args.file) {
+                    this.sendErrorResponse(response, 113, 'trace-dump requires a file argument.');
+                    return;
+                }
+                monitorCmd = `esp riscv_trace dump ${quotePath(args.file)}`;
+                break;
+            }
+            default:
+                this.sendErrorResponse(response, 114, `Unknown trace command: ${command}`);
+                return;
+        }
+
+        const miCmd = `interpreter-exec console "monitor ${escape(monitorCmd)}"`;
+        this.miDebugger.sendCommand(miCmd, false, true).then(
+            (result) => {
+                response.body = {
+                    command,
+                    resultClass: result.resultRecords ? result.resultRecords.resultClass : undefined,
+                    output: result.consoleOutput ?? '',
+                };
+                this.sendResponse(response);
+            },
+            (err) => {
+                response.body = { command, error: err && err.toString ? err.toString() : String(err) };
+                this.sendErrorResponse(response, 115, `Trace command failed: ${monitorCmd}`);
+            }
+        );
     }
 
     /** Handles disassemble custom request. */
